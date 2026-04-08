@@ -3,44 +3,63 @@ import { Ionicons } from '@expo/vector-icons';
 
 export default function Login() {
   return (
-    <ImageBackground style={styles.imageBackground}
-      source={require('../assets/images/background.png')}
-      resizeMode="cover"
-    >
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+    <View style={styles.container}>
+      <ImageBackground style={styles.imageBackground}
+        source={require('../assets/images/background.png')}
+        resizeMode="cover"
       >
-        <View style={styles.container}>
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
 
-          <View style={styles.form}>
+
+          <View style={styles.content}>
 
             <View style={styles.header}>
               <Image style={styles.imagem} source={require('../assets/images/ifnmg_logo.png')} />
               <Text style={styles.title}> Portal IFNMG</Text>
             </View>
 
-            <View style={styles.campo}>
-              <Text style={styles.label}>Email: </Text>
-              <TextInput style={styles.input} placeholder='Usuário' placeholderTextColor="#666"></TextInput>
-            </View>
-            <View style={styles.campo}>
-              <Text style={styles.label}>Senha: </Text>
-              <View style={styles.inputContainer}>
-                <TextInput style={styles.inputComIcone} placeholder='Senha' placeholderTextColor="#666" secureTextEntry></TextInput>
-                <Ionicons name="eye-off-outline" size={20} color="#666"
-                />
+            <View style={styles.form}>
+              <View style={styles.campo}>
+                <View style={styles.label}>
+                  <Text style={styles.labelText}>E-mail: </Text>
+                </View>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="at-outline" size={20} color="#747474" />
+                  <TextInput style={styles.input} placeholder='seu.email@ifnmg.edu.br' placeholderTextColor="#666"></TextInput>
+                </View>
               </View>
+              <View style={styles.campo}>
+                <View style={styles.label}>
+                  <Text style={styles.labelText}>Senha: </Text>
+                </View>
+                <View style={styles.inputContainer}>
+                  <Ionicons name="lock-closed-outline" size={20} color="#747474" />
+                  <TextInput style={styles.input} placeholder='******' placeholderTextColor="#666" secureTextEntry></TextInput>
+                  <TouchableOpacity onPress={() => { }}>
+                    <Ionicons name="eye-off-outline" size={20} color="#747474" />
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <TouchableOpacity style={styles.botao} onPress={() => { }}>
+                <Text style={styles.botaoText}>Entrar</Text>
+              </TouchableOpacity>
             </View>
 
-            <TouchableOpacity style={styles.botao} onPress={() => { }}>
-              <Text style={styles.botaoText}>Entrar</Text>
-            </TouchableOpacity>
+            <View style={styles.footer}>
+              <TouchableOpacity style={styles.visitButton} onPress={() => { }} >
+                <Text style={styles.visitText}>Continuar como visitante</Text>
+                <Ionicons name="arrow-forward" size={18} color="#000" />
+              </TouchableOpacity>
+            </View>
+
           </View>
 
-        </View>
-      </KeyboardAvoidingView >
-    </ImageBackground >
+        </KeyboardAvoidingView >
+      </ImageBackground>
+    </View>
 
   );
 }
@@ -49,17 +68,24 @@ const styles = StyleSheet.create({
 
   container: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    backgroundColor: "#fff",
   },
 
   imageBackground: {
     flex: 1,
   },
 
+  content: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+    paddingVertical: 40,
+  },
+
   header: {
     alignItems: "center",
-    marginBottom: 30,
+    marginTop: 80,
   },
 
   imagem: {
@@ -69,67 +95,91 @@ const styles = StyleSheet.create({
   },
 
   title: {
-    fontSize: 24,
-    marginTop: 10,
+    fontSize: 26,
+    marginTop: 15,
     fontWeight: "500",
   },
 
   form: {
-    width: "90%",
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    padding: 25,
-    backgroundColor: "rgb(221, 221, 221)",
-  },
-
-  campo: {
-    marginBottom: 15,
     width: "100%",
   },
 
-  label: {
-    fontWeight: "600",
-    fontSize: 16,
-    marginBottom: 5,
+  campo: {
+    width: "100%",
+    position: "relative",
+    marginBottom: 25,
   },
 
-  input: {
-    borderWidth: 1,
-    borderColor: "#8b8b8b",
-    borderRadius: 10,
-    padding: 10,
-    backgroundColor: "#fff",
+  label: {
+    position: "absolute",
+    zIndex: 1,
+    top: -12,
+    left: 25,
+    backgroundColor: "#ffffff",
+  },
+
+  labelText: {
+    fontWeight: "600",
+    fontSize: 16,
+    color: "#747474",
   },
 
   inputContainer: {
     flexDirection: "row",
+    height: 55,
     alignItems: "center",
-    borderWidth: 1,
-    borderColor: "#8b8b8b",
-    borderRadius: 10,
-    paddingHorizontal: 10,
+    borderWidth: 1.5,
+    borderColor: "#ccc",
+    borderRadius: 25,
+    paddingHorizontal: 15,
     backgroundColor: "#fff",
   },
 
-  inputComIcone: {
+  input: {
     flex: 1,
-    padding: 10,
+    paddingHorizontal: 10,
+    fontSize: 16,
   },
 
   botao: {
     width: "100%",
     padding: 10,
-    borderRadius: 10,
+    borderRadius: 28,
     alignItems: "center",
     backgroundColor: "#007bff",
     marginTop: 15,
+    marginBottom: 10,
   },
 
   botaoText: {
     color: "#fff",
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: "600",
+  },
+
+  footer: {
+    width: "100%",
+    justifyContent: "flex-end",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+
+  visitButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 15,
+    borderRadius: 28,
+    backgroundColor: "#d3d3d3",
+    width: "80%",
+    marginBottom: 5,
+  },
+
+  visitText: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginRight: 5,
+    color: "#000000bc",
   },
 
 });
