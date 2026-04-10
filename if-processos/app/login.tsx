@@ -1,7 +1,11 @@
 import { View, ImageBackground, Image, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useRouter } from 'expo-router';
 
 export default function Login() {
+
+  const router = useRouter();
+
   return (
     <View style={styles.container}>
       <ImageBackground style={styles.imageBackground}
@@ -12,8 +16,6 @@ export default function Login() {
           style={{ flex: 1 }}
           behavior={Platform.OS === "ios" ? "padding" : "height"}
         >
-
-
           <View style={styles.content}>
 
             <View style={styles.header}>
@@ -43,20 +45,20 @@ export default function Login() {
                   </TouchableOpacity>
                 </View>
               </View>
-              <TouchableOpacity style={styles.botao} onPress={() => { }}>
+              {/* Rota de teste para a tela de criar publicações */}
+              <TouchableOpacity style={styles.botao} onPress={() => router.push('/admin/criar-publicacao')}> 
                 <Text style={styles.botaoText}>Entrar</Text>
               </TouchableOpacity>
             </View>
 
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.visitButton} onPress={() => { }} >
+              <TouchableOpacity style={styles.visitButton} onPress={() => router.push('/home')} >
                 <Text style={styles.visitText}>Continuar como visitante</Text>
                 <Ionicons name="arrow-forward" size={18} color="#000" />
               </TouchableOpacity>
             </View>
 
           </View>
-
         </KeyboardAvoidingView >
       </ImageBackground>
     </View>
@@ -121,7 +123,8 @@ const styles = StyleSheet.create({
   labelText: {
     fontWeight: "600",
     fontSize: 16,
-    color: "#747474",
+    color: "#000000bc",
+    paddingHorizontal: 10,
   },
 
   inputContainer: {
