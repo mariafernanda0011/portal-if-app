@@ -1,11 +1,48 @@
+import React, { useState } from 'react';
 import { View, ImageBackground, Image, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import axios from 'axios';
+import { Alert } from 'react-native';
 
 export default function Login() {
-
   const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
+
+  const handleLogin = async () => {
+    if (!email || !password) {
+      Alert.alert('Erro', 'Preencha o e-mail e a senha.');
+      return;
+    }
+
+    try {
+      // ATENÇÃO: Substitua pelo IP da sua máquina
+      const urlDaApi = 'http://192.168.100.252:3000/login';
+
+      const resposta = await axios.post(urlDaApi, {
+        email: email.trim(), 
+        password: password
+      });
+
+      if (resposta.status === 200) {
+        const { token, role } = resposta.data;
+
+        Alert.alert('Sucesso', 'Login realizado!');
+
+        if (role === 'admin') {
+          router.push('/admin/criar-publicacao');
+        } else {
+          router.push('/home'); 
+        }
+      }
+    } catch (error: any) {
+      
+      const mensagemErro = error.response?.data?.erro || 'Não foi possível conectar ao servidor.';
+      Alert.alert('Falha no Login', mensagemErro);
+    }
+  };
   return (
     <View style={styles.container}>
       <ImageBackground style={styles.imageBackground}
@@ -30,23 +67,39 @@ export default function Login() {
                 </View>
                 <View style={styles.inputContainer}>
                   <Ionicons name="at-outline" size={20} color="#747474" />
-                  <TextInput style={styles.input} placeholder='seu.email@ifnmg.edu.br' placeholderTextColor="#666"></TextInput>
+                  <TextInput
+                    style={styles.input}
+                    placeholder='seu.email@ifnmg.edu.br'
+                    placeholderTextColor="#666"
+                    value={email}
+                    onChangeText={setEmail}
+                    autoCapitalize="none"
+                    keyboardType="email-address"
+                  />
                 </View>
               </View>
+
               <View style={styles.campo}>
                 <View style={styles.label}>
                   <Text style={styles.labelText}>Senha: </Text>
                 </View>
                 <View style={styles.inputContainer}>
                   <Ionicons name="lock-closed-outline" size={20} color="#747474" />
-                  <TextInput style={styles.input} placeholder='******' placeholderTextColor="#666" secureTextEntry></TextInput>
+                  <TextInput
+                    style={styles.input}
+                    placeholder='******'
+                    placeholderTextColor="#666"
+                    secureTextEntry
+                    value={password}
+                    onChangeText={setPassword}
+                  />
                   <TouchableOpacity onPress={() => { }}>
                     <Ionicons name="eye-off-outline" size={20} color="#747474" />
                   </TouchableOpacity>
                 </View>
               </View>
-              {/* Rota de teste para a tela de criar publicações */}
-              <TouchableOpacity style={styles.botao} onPress={() => router.push('/admin/criar-publicacao')}> 
+
+              <TouchableOpacity style={styles.botao} onPress={handleLogin}>
                 <Text style={styles.botaoText}>Entrar</Text>
               </TouchableOpacity>
             </View>
@@ -62,7 +115,6 @@ export default function Login() {
         </KeyboardAvoidingView >
       </ImageBackground>
     </View>
-
   );
 }
 

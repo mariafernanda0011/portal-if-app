@@ -12,10 +12,10 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import axios from 'axios';
 import Card from '@/src/components/Card';
 import BotaoVoltar from '@/src/components/BotaoVoltar';
 
-// Importação dos padrões do projeto
 import { COLORS } from '@/src/styles/theme';
 import { globalStyles } from '@/src/styles/globalStyles';
 
@@ -23,7 +23,6 @@ export default function CriarPublicacao() {
 
     const router = useRouter();
 
-    // Estados do Formulário
     const [titulo, setTitulo] = useState('');
     const [descricao, setDescricao] = useState('');
     const [link, setLink] = useState('');
@@ -46,13 +45,37 @@ export default function CriarPublicacao() {
         setArquivos(arquivos.filter((_, i) => i !== index));
     };
 
-    const handlePublicar = () => {
+    // Função atualizada para enviar os dados para o Back-end
+    const handlePublicar = async () => {
         if (!titulo.trim() || !descricao.trim()) {
             Alert.alert("Campos obrigatórios", "Por favor, preencha o título e a descrição.");
             return;
         }
-        Alert.alert("Sucesso", "Dados capturados pelo front!");
-        router.back();
+
+        try {
+            
+            const novaPublicacao = {
+                titulo: titulo,
+                subtitulo: subtitulo,
+                descricao: descricao,
+                linkExterno: link,
+                imagem: imagem,
+                pdfs: arquivos
+            };
+
+            // ATENÇÃO: Substitua pelo IP da sua máquina
+            const urlDaApi = 'http://192.168.100.252:3000/publicacoes';
+            const resposta = await axios.post(urlDaApi, novaPublicacao);
+
+            if (resposta.status === 201 || resposta.status === 200) {
+                Alert.alert("Sucesso", "Publicação enviada para o servidor!");
+                router.back();
+            }
+
+        } catch (error) {
+            console.error("Erro ao enviar dados para a API: ", error);
+            Alert.alert("Ops!", "Houve um erro ao tentar salvar a publicação. Verifique se o servidor está rodando e se o IP está correto.");
+        }
     };
 
     return (

@@ -1,4 +1,6 @@
-import { View, Text, TextInput, StyleSheet, FlatList } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import axios from 'axios'; 
 import Card from '@/src/components/Card';
 import BotaoVoltar from '@/src/components/BotaoVoltar';
 import { Ionicons } from '@expo/vector-icons';
@@ -6,34 +8,25 @@ import { useRouter } from 'expo-router';
 import { COLORS } from '@/src/styles/theme';
 import { globalStyles } from '@/src/styles/globalStyles';
 
-
 export default function Home() {
-
     const router = useRouter();
+    const [processos, setProcessos] = useState([]);
+    const [carregando, setCarregando] = useState(true);
+    const buscarPublicacoes = async () => {
+        try {
+            const urlDaApi = 'http://192.168.100.252/publicacoes'; // ATENÇÃO: Substitua pelo IP da sua máquina
+            const resposta = await axios.get(urlDaApi);
+            setProcessos(resposta.data); 
+        } catch (error) {
+            console.error("Erro ao buscar as publicações:", error);
+        } finally {
+            setCarregando(false); 
+        }
+    };
 
-    {/* Dados de teste */ }
-    const processos = [
-
-        {
-            id: '1',
-            imagem: '',
-            linkExterno: 'https://www.ifnmg.edu.br/mais-noticias-almenara/723-almenara-noticias-2026/40417-ifnmg-campus-almenara-abre-selecao-para-programa-de-monitoria-e-monitoria-inclusiva-2026',
-            titulo: 'Publicado edital para remoção de docentes do IFNMG entre os campi Araçuaí, Arinos, Pirapora, Salinas e Teófilo Otoni',
-            subtitulo: 'Edital',
-            descricao: 'O IFNMG publicou o Edital nº 551/2026, que regulamenta o Processo Seletivo de Remoção de servidores docentes entre as unidades organizacionais da instituição.',
-            pdfs: ['edital_01.pdf']
-        },
-
-        {
-            id: '2',
-            imagem: '',
-            titulo: 'IFNMG Campus Almenara abre seleção para Programa de Monitoria e Monitoria Inclusiva 2026',
-            descricao: 'O Instituto Federal do Norte de Minas Gerais (IFNMG) – Campus Almenara publicou o Edital nº 060/2026, que estabelece as normas para seleção de estudantes bolsistas para o Programa Institucional de Monitoria e Monitoria Inclusiva, referente ao primeiro semestre letivo de 2026. ',
-            pdfs: ['Edital.pdf', 'ANEXO I - TERMO DE COMPROMISSO E ADESÃO']
-
-        },
-
-    ];
+    useEffect(() => {
+        buscarPublicacoes();
+    }, []);
 
     return (
         <View style={globalStyles.container}>
@@ -50,20 +43,30 @@ export default function Home() {
                 </View>
             </View>
 
-            <FlatList
-                data={processos}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                renderItem={({ item }) => (
-                    <Card {...item} />
-                )}
-            />
-
+            {carregando ? (
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <ActivityIndicator size="large" color={COLORS.primary} />
+                    <Text style={{ marginTop: 10, color: COLORS.gray }}>Buscando publicações...</Text>
+                </View>
+            ) : (
+                <FlatList
+                    data={processos}
+                    keyExtractor={(item) => item._id}
+                    contentContainerStyle={styles.listContent}
+                    renderItem={({ item }) => (
+                        <Card {...item} />
+                    )}
+                    ListEmptyComponent={
+                        <Text style={{ textAlign: 'center', color: COLORS.gray, marginTop: 50 }}>
+                            Nenhuma publicação encontrada no momento.
+                        </Text>
+                    }
+                />
+            )}
             <BotaoVoltar variante="flutuante" cor={COLORS.secondary} />
         </View>
     );
 }
-
 const styles = StyleSheet.create({
 
     portalTitle: {
