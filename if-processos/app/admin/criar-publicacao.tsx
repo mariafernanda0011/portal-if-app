@@ -53,7 +53,7 @@ export default function CriarPublicacao() {
         }
 
         try {
-            
+
             const novaPublicacao = {
                 titulo: titulo,
                 subtitulo: subtitulo,
@@ -64,7 +64,7 @@ export default function CriarPublicacao() {
             };
 
             // ATENÇÃO: Substitua pelo IP da sua máquina
-            const urlDaApi = 'http://192.168.100.252:3000/publicacoes';
+            const urlDaApi = 'http://192.168.1.7:3000/publicacoes';
             const resposta = await axios.post(urlDaApi, novaPublicacao);
 
             if (resposta.status === 201 || resposta.status === 200) {

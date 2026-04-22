@@ -19,10 +19,10 @@ export default function Login() {
 
     try {
       // ATENÇÃO: Substitua pelo IP da sua máquina
-      const urlDaApi = 'http://192.168.100.252:3000/login';
+      const urlDaApi = 'http://10.0.2.2:3000/auth/login';
 
       const resposta = await axios.post(urlDaApi, {
-        email: email.trim(), 
+        email: email.trim(),
         password: password
       });
 
@@ -34,11 +34,11 @@ export default function Login() {
         if (role === 'admin') {
           router.push('/admin/criar-publicacao');
         } else {
-          router.push('/home'); 
+          router.push('/home');
         }
       }
     } catch (error: any) {
-      
+
       const mensagemErro = error.response?.data?.erro || 'Não foi possível conectar ao servidor.';
       Alert.alert('Falha no Login', mensagemErro);
     }

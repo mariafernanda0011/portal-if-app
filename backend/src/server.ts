@@ -24,6 +24,26 @@ app.get('/', (req, res) => {
   res.send('API Portal IFNMG Rodando! 🚀');
 });
 
+app.post('/publicacoes', async (req, res) => {
+  const { titulo, subtitulo, descricao, imagem, urlPublicacao, arquivoPdf } = req.body;
+
+  try {
+    const novaPostagem = new Post({
+      titulo,
+      subtitulo,
+      descricao,
+      imagem,
+      urlPublicacao,
+      arquivoPdf     
+    });
+
+    await novaPostagem.save();
+    res.status(201).json({ mensagem: "Publicação criada com sucesso!" });
+  } catch (error) {
+    console.error("Erro ao salvar publicação:", error);
+    res.status(500).json({ erro: "Erro ao salvar no banco de dados." });
+  }
+});
 
 app.get('/publicacoes', async (req, res) => {
   try {
@@ -35,7 +55,7 @@ app.get('/publicacoes', async (req, res) => {
   }
 });
 
-app.post('/cadastro', async (req, res) => {
+app.post('/auth/cadastro', async (req, res) => {
   const { email, password } = req.body;
 
   try {
@@ -79,7 +99,7 @@ app.post('/cadastro', async (req, res) => {
   }
 });
 
-app.post('/login', async (req, res) => {
+app.post('/auth/login', async (req, res) => {
   const { email, password } = req.body;
 
   try {

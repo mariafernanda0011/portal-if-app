@@ -6,6 +6,7 @@ import * as Linking from 'expo-linking';
 import { COLORS } from '../styles/theme'; 
 
 type CardProps = {
+    _id: string;
     imagem?: any;
     titulo: string;
     subtitulo?: string;

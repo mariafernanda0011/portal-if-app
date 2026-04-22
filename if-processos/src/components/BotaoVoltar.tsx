@@ -14,7 +14,6 @@ interface BotaoVoltarProps {
 export default function BotaoVoltar({ variante = 'header', texto, cor, style }: BotaoVoltarProps) {
   const router = useRouter();
 
-  // Define o estilo base baseado na variante
   const estiloBotao = variante === 'flutuante' ? styles.flutuante : styles.header;
   const corIcone = cor || (variante === 'header' ? COLORS.white : COLORS.secondary);
 
