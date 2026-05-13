@@ -1,23 +1,15 @@
 import React, { useState } from 'react';
-import {
-    View,
-    Text,
-    TextInput,
-    StyleSheet,
-    ScrollView,
-    TouchableOpacity,
-    Alert,
-    KeyboardAvoidingView,
-    Platform
-} from 'react-native';
+import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import Card from '@/src/components/Card';
 import BotaoVoltar from '@/src/components/BotaoVoltar';
-
 import { COLORS } from '@/src/styles/theme';
 import { globalStyles } from '@/src/styles/globalStyles';
+import * as ImagePicker from 'expo-image-picker';
+import * as DocumentPicker from 'expo-document-picker';
+import { API_URL } from '@/src/config/api';
 
 export default function CriarPublicacao() {
 
@@ -30,51 +22,116 @@ export default function CriarPublicacao() {
     const [subtitulo, setSubtitulo] = useState('');
     const [imagem, setImagem] = useState('');
 
-    const handleSelecionarCapa = () => {
-        setImagem('https://picsum.photos/400/200');
+
+    const handleSelecionarCapa = async () => {
+        const resultado = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: ['images'],
+            allowsEditing: true,
+            aspect: [16, 9],
+            quality: 1,
+        });
+
+        if (!resultado.canceled) {
+            setImagem(resultado.assets[0].uri);
+        }
     };
 
     const removerImagem = () => setImagem('');
 
-    const handleAnexarPDF = () => {
-        const nomeFake = `edital_extraido_${arquivos.length + 1}.pdf`;
-        setArquivos([...arquivos, nomeFake]);
-    };
+    const handleAnexarPDF = async () => {
+        try {
+            const resultado = await DocumentPicker.getDocumentAsync({
+                type: 'application/pdf',
+                copyToCacheDirectory: true,
+            });
 
+            if (!resultado.canceled && resultado.assets && resultado.assets.length > 0) {
+
+                const novoPdf = resultado.assets.map(asset => {
+
+                    if (Platform.OS === 'web') {
+                        if (asset.file) {
+                            return URL.createObjectURL(asset.file);
+                        }
+                        return asset.uri;
+                    } else {
+                        return asset.uri;
+
+                    }
+
+                });
+                setArquivos([...arquivos, ...novoPdf]);
+            }
+
+        } catch (error) {
+            console.error("Erro ao escolher PDF:", error);
+        }
+
+    };
+    
     const removerArquivo = (index: number) => {
         setArquivos(arquivos.filter((_, i) => i !== index));
     };
 
-    // Função atualizada para enviar os dados para o Back-end
     const handlePublicar = async () => {
         if (!titulo.trim() || !descricao.trim()) {
-            Alert.alert("Campos obrigatórios", "Por favor, preencha o título e a descrição.");
+            Alert.alert("Erro", "Preencha título e descrição.");
             return;
         }
 
         try {
+            const formData = new FormData();
 
-            const novaPublicacao = {
-                titulo: titulo,
-                subtitulo: subtitulo,
-                descricao: descricao,
-                linkExterno: link,
-                imagem: imagem,
-                pdfs: arquivos
-            };
+            formData.append('titulo', titulo);
+            formData.append('subtitulo', subtitulo);
+            formData.append('descricao', descricao);
+            formData.append('urlPublicacao', link);
 
-            // ATENÇÃO: Substitua pelo IP da sua máquina
-            const urlDaApi = 'http://192.168.1.7:3000/publicacoes';
-            const resposta = await axios.post(urlDaApi, novaPublicacao);
+            if (imagem) {
+                const nome = imagem.split('/').pop() || 'capa.jpg';
 
-            if (resposta.status === 201 || resposta.status === 200) {
-                Alert.alert("Sucesso", "Publicação enviada para o servidor!");
+                if (Platform.OS === 'web') {
+                    const response = await fetch(imagem);
+                    const blob = await response.blob();
+                    formData.append('imagem', blob, nome);
+                } else {
+                    // @ts-ignore
+                    formData.append('imagem', { uri: imagem, name: nome, type: 'image/jpeg' });
+                }
+            }
+
+            let index = 0;
+            for (const pdfUri of arquivos) {
+                const nomePdf = `arquivo_${index}.pdf`;
+
+                if (Platform.OS === 'web') {
+                    const response = await fetch(pdfUri);
+                    const blob = await response.blob();
+                    formData.append('pdfs', blob, nomePdf);
+                } else {
+                    // @ts-ignore
+                    formData.append('pdfs', { uri: pdfUri, name: nomePdf, type: 'application/pdf' });
+                }
+                index++;
+            }
+
+            const resposta = await fetch(`${API_URL}/publicacoes`, {
+                method: 'POST',
+                body: formData,
+            });
+
+            if (resposta.ok) { 
+                Alert.alert("Sucesso", "Publicação enviada com os arquivos!");
                 router.back();
+            } else {
+                const erroJson = await resposta.json();
+                console.error("Erro do servidor:", erroJson);
+                Alert.alert("Erro", "O servidor recusou a postagem.");
             }
 
         } catch (error) {
-            console.error("Erro ao enviar dados para a API: ", error);
-            Alert.alert("Ops!", "Houve um erro ao tentar salvar a publicação. Verifique se o servidor está rodando e se o IP está correto.");
+            console.error("Erro no envio:", error);
+            Alert.alert("Erro", "Falha catastrófica ao tentar salvar.");
         }
     };
 
@@ -85,7 +142,6 @@ export default function CriarPublicacao() {
         >
             <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 
-                {/* Header padrão utilizando globalStyles */}
                 <View style={[globalStyles.header, styles.header]}>
                     <BotaoVoltar variante='header' cor={COLORS.white} />
                     <Text style={globalStyles.headerTitle}>Nova Publicação</Text>
@@ -181,8 +237,7 @@ export default function CriarPublicacao() {
                         subtitulo={subtitulo || ""}
                         descricao={descricao || "A descrição resumida será exibida neste local após o preenchimento."}
                         pdfs={arquivos}
-                        linkExterno={link}
-                    />
+                        linkExterno={link} _id={''} />
                 </View>
 
                 <View style={{ paddingHorizontal: 10, paddingBottom: 10, marginTop: 15 }}>

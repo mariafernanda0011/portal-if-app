@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator,Platform } from 'react-native';
 import axios from 'axios';
 import Card from '@/src/components/Card';
 import BotaoVoltar from '@/src/components/BotaoVoltar';
@@ -7,6 +7,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { COLORS } from '@/src/styles/theme';
 import { globalStyles } from '@/src/styles/globalStyles';
+import { API_URL } from '@/src/config/api';
 
 
 interface Post {
@@ -23,7 +24,7 @@ export default function Home() {
     const [carregando, setCarregando] = useState(true);
     const buscarPublicacoes = async () => {
         try {
-            const urlDaApi = 'http://10.0.2.2:3000/publicacoes'; // ATENÇÃO: Substitua pelo IP da sua máquina
+            const urlDaApi = `${API_URL}/publicacoes`;
             const resposta = await axios.get(urlDaApi);
             setProcessos(resposta.data);
         } catch (error) {

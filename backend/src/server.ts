@@ -6,44 +6,77 @@ import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import { User } from './models/User';
 import { Post } from './models/Post';
+import multer from 'multer';
+
 
 const app = express();
 app.use(express.json());
 app.use(cors());
+app.use('/uploads', express.static('uploads'));
 
 const PORT = process.env.PORT || 3000;
 const CHAVE_SECRETA = process.env.CHAVE_SECRETA || 'chave_reserva_temporaria_123';
-const MONGODB_URL = process.env.MONGODB_URL || 'SUA_URL_DO_MONGODB_AQUI';
+const MONGODB_ATLAS = process.env.MONGODB_ATLAS_URL || '';
+const MONGODB_LOCAL = process.env.MONGODB_LOCAL_URL || '';
 
+console.log('⏳ Tentando conectar ao MongoDB Atlas (Nuvem)...');
 
-mongoose.connect(MONGODB_URL)
-  .then(() => console.log('✅ Conectado ao MongoDB!'))
-  .catch(err => console.error('❌ Erro ao conectar ao MongoDB:', err));
+mongoose.connect(MONGODB_ATLAS, { family: 4 })
+  .then(() => {
+    console.log('✅ Conectado ao MongoDB Atlas com sucesso!');
+  })
+  .catch((erroAtlas) => {
+    console.error('⚠️ Falha ao conectar no Atlas. Motivo:', erroAtlas);
+    console.log('🔄 Acionando Plano B: Conectando ao Banco Local...');
 
+    // Tenta conectar no banco local se o Atlas falhar
+    mongoose.connect(MONGODB_LOCAL)
+      .then(() => console.log('✅ Conectado ao MongoDB Local (Modo Offline)!'))
+      .catch((erroLocal) => console.error('❌ Erro fatal: Nenhum banco de dados disponível.', erroLocal));
+  });
 app.get('/', (req, res) => {
   res.send('API Portal IFNMG Rodando! 🚀');
 });
 
-app.post('/publicacoes', async (req, res) => {
-  const { titulo, subtitulo, descricao, imagem, urlPublicacao, arquivoPdf } = req.body;
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, 'uploads/');
+  },
+  filename: (req, file, cb) => {
+    cb(null, `${Date.now()}-${file.originalname}`);
+  }
+});
 
+const upload = multer({ storage });
+
+app.post('/publicacoes', upload.fields([
+  { name: 'imagem', maxCount: 1 },
+  { name: 'pdfs', maxCount: 5 }
+]), async (req, res) => {
   try {
+    const { titulo, subtitulo, descricao, linkExterno } = req.body;
+    const files = req.files as { [fieldname: string]: Express.Multer.File[] };
+    const caminhoImagem = files && files['imagem'] ? files['imagem'][0].path.replace(/\\/g, '/') : '';
+    const caminhosPdfs = files && files['pdfs'] ? files['pdfs'].map(f => f.path.replace(/\\/g, '/')) : [];
+
     const novaPostagem = new Post({
       titulo,
       subtitulo,
       descricao,
-      imagem,
-      urlPublicacao,
-      arquivoPdf     
+      imagem: caminhoImagem,
+      urlPublicacao: linkExterno,
+      arquivoPdf: caminhosPdfs[0],
     });
 
     await novaPostagem.save();
     res.status(201).json({ mensagem: "Publicação criada com sucesso!" });
+
   } catch (error) {
     console.error("Erro ao salvar publicação:", error);
-    res.status(500).json({ erro: "Erro ao salvar no banco de dados." });
+    res.status(500).json({ erro: "Erro interno ao salvar." });
   }
 });
+
 
 app.get('/publicacoes', async (req, res) => {
   try {
@@ -131,6 +164,6 @@ app.post('/auth/login', async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
+app.listen(Number(PORT), '0.0.0.0', () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });

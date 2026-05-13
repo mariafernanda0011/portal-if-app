@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import axios from 'axios';
 import { Alert } from 'react-native';
+import { API_URL } from '@/src/config/api';
 
 export default function Login() {
   const router = useRouter();
@@ -18,8 +19,7 @@ export default function Login() {
     }
 
     try {
-      // ATENÇÃO: Substitua pelo IP da sua máquina
-      const urlDaApi = 'http://10.0.2.2:3000/auth/login';
+      const urlDaApi = `${API_URL}/auth/login`;
 
       const resposta = await axios.post(urlDaApi, {
         email: email.trim(),

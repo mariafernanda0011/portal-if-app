@@ -3,7 +3,10 @@ import { View, Text, Image, StyleSheet, TouchableOpacity, Platform, Modal, SafeA
 import { WebView } from 'react-native-webview';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
-import { COLORS } from '../styles/theme'; 
+import { COLORS } from '../styles/theme';
+import { API_URL } from '@/src/config/api';
+
+
 
 type CardProps = {
     _id: string;
@@ -13,6 +16,7 @@ type CardProps = {
     descricao: string;
     linkExterno?: string;
     pdfs?: string[];
+    arquivoPdf?: string;
 }
 
 export default function Card(props: CardProps) {
@@ -20,19 +24,47 @@ export default function Card(props: CardProps) {
     const [modalVisivel, setModalVisivel] = useState(false);
     const [pdfUrl, setPdfUrl] = useState('');
 
-    const abrirPdf = (url: string) => {
-        const urlFinal = Platform.OS === 'android'
-            ? `https://docs.google.com/gview?embedded=true&url=${url}`
-            : url;
-        setPdfUrl(urlFinal);
-        setModalVisivel(true);
+    const getImagemSource = () => {
+        if (!props.imagem) return null;
+
+        if (typeof props.imagem === 'number') return props.imagem;
+
+        if (
+            props.imagem.startsWith('http') ||
+            props.imagem.startsWith('https') ||
+            props.imagem.startsWith('file://') ||
+            props.imagem.startsWith('data:') ||
+            props.imagem.startsWith('blob:')
+        ) {
+            return { uri: props.imagem };
+        }
+        return { uri: `${API_URL}/${props.imagem}` };
+    };
+
+    const imagemSource = getImagemSource();
+
+    const abrirPdf = (caminhoRelativo: string) => {
+        const urlCompleta = caminhoRelativo.startsWith('http')
+            ? caminhoRelativo
+            : `${API_URL}/${caminhoRelativo}`;
+
+        if (Platform.OS === 'web') {
+            window.open(urlCompleta, '_blank');
+        } else {
+            const urlFinal = Platform.OS === 'android'
+                ? `https://docs.google.com/gview?embedded=true&url=${urlCompleta}`
+                : urlCompleta;
+
+            setPdfUrl(urlFinal);
+            setModalVisivel(true);
+        }
     };
 
     return (
         <View style={styles.card}>
-            {props.imagem && (
+            {imagemSource && (
                 <Image
-                    source={typeof props.imagem === 'number' ? props.imagem : { uri: props.imagem }}
+                    source={imagemSource}
                     style={styles.imagem}
                 />
             )}
@@ -57,19 +89,34 @@ export default function Card(props: CardProps) {
                     </TouchableOpacity>
                 )}
 
-                {expandido && props.pdfs && (
+                {expandido && ((props.pdfs && props.pdfs.length > 0) || props.arquivoPdf) && (
                     <View style={styles.conteudoExtra}>
                         <Text style={styles.label}>Anexos:</Text>
-                        {props.pdfs.map((path, index) => (
+
+                        {props.pdfs && props.pdfs.map((path, index) => (
                             <TouchableOpacity
                                 key={index}
                                 style={styles.pdfItem}
                                 onPress={() => abrirPdf(path)}
                             >
                                 <Ionicons name="document-text-outline" size={20} color={COLORS.secondary} />
-                                <Text style={styles.pdfTexto} numberOfLines={1}>{path.split('/').pop()}</Text>
+                                <Text style={styles.pdfTexto} numberOfLines={1}>
+                                    {path.split(/[/\\]/).pop()}
+                                </Text>
                             </TouchableOpacity>
                         ))}
+
+                        {props.arquivoPdf && (
+                            <TouchableOpacity
+                                style={styles.pdfItem}
+                                onPress={() => abrirPdf(props.arquivoPdf!)}
+                            >
+                                <Ionicons name="document-text-outline" size={20} color={COLORS.secondary} />
+                                <Text style={styles.pdfTexto} numberOfLines={1}>
+                                    {props.arquivoPdf.split(/[/\\]/).pop()}
+                                </Text>
+                            </TouchableOpacity>
+                        )}
                     </View>
                 )}
 
@@ -88,59 +135,63 @@ export default function Card(props: CardProps) {
                 </TouchableOpacity>
             </View>
 
-            <Modal visible={modalVisivel} animationType="slide">
-                <SafeAreaView style={{ flex: 1 }}>
-                    <TouchableOpacity onPress={() => setModalVisivel(false)} style={styles.btnFechar}>
-                        <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>FECHAR DOCUMENTO</Text>
-                    </TouchableOpacity>
-                    <WebView source={{ uri: pdfUrl }} style={{ flex: 1 }} />
-                </SafeAreaView>
-            </Modal>
+            {Platform.OS !== 'web' && (
+                <Modal visible={modalVisivel} animationType="slide" onRequestClose={() => setModalVisivel(false)}>
+                    <SafeAreaView style={{ flex: 1, backgroundColor: COLORS.textDark }}>
+                        <TouchableOpacity onPress={() => setModalVisivel(false)} style={styles.btnFechar}>
+                            <Text style={{ color: COLORS.white, fontWeight: 'bold' }}>FECHAR DOCUMENTO</Text>
+                        </TouchableOpacity>
+                        <WebView
+                            source={{ uri: pdfUrl }}
+                            style={{ flex: 1 }}
+                            startInLoadingState={true}
+                        />
+                    </SafeAreaView>
+                </Modal>
+            )}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    
     card: {
         backgroundColor: COLORS.white,
         borderRadius: 15,
         marginBottom: 15,
         elevation: 3,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.1,
+        shadowRadius: 4,
         overflow: 'hidden',
         padding: 15,
     },
-    
     imagem: {
         alignSelf: "center",
         width: '100%',
         height: 200,
         resizeMode: 'cover',
-        borderRadius: 8, 
+        borderRadius: 8,
         marginBottom: 10,
     },
-    
     titulo: {
         fontSize: 16,
         fontWeight: 'bold',
         color: COLORS.textDark,
         marginBottom: 5,
     },
-    
     subtituloTexto: {
         fontSize: 14,
         color: COLORS.textLight,
         fontWeight: '600',
         marginBottom: 5,
     },
-    
     descricao: {
         fontSize: 14,
         color: COLORS.gray,
         marginTop: 5,
         textAlign: 'justify',
     },
-    
     linkExternoContainer: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -151,7 +202,6 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: '#c8e6c9',
     },
-    
     linkExternoTexto: {
         flex: 1,
         marginLeft: 8,
@@ -160,53 +210,47 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         textDecorationLine: 'underline',
     },
-    
     conteudoExtra: {
         marginTop: 15,
         paddingTop: 15,
         borderTopWidth: 1,
         borderTopColor: COLORS.lightGray,
     },
-    
     label: {
         fontSize: 14,
         fontWeight: 'bold',
         marginBottom: 10,
         color: COLORS.textDark,
     },
-    
     pdfItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: COLORS.inputBg,
+        backgroundColor: '#f8f9fa',
         padding: 10,
         borderRadius: 8,
         marginBottom: 5,
+        borderWidth: 1,
+        borderColor: COLORS.lightGray
     },
-    
     pdfTexto: {
         fontSize: 12,
         marginLeft: 10,
         color: '#2f76d3',
     },
-    
     botaoExpandir: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
         marginTop: 10,
     },
-    
     textoBotaoExpandir: {
         color: '#007bff',
         fontWeight: '600',
         marginRight: 5,
     },
-
-    btnFechar: { 
+    btnFechar: {
         padding: 15,
         backgroundColor: COLORS.textDark,
-        alignItems: 'center' 
+        alignItems: 'center'
     },
-    
 });
