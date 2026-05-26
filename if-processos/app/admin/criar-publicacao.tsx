@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform} from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import axios from 'axios';
 import Card from '@/src/components/Card';
 import BotaoVoltar from '@/src/components/BotaoVoltar';
 import { COLORS } from '@/src/styles/theme';
@@ -22,6 +22,24 @@ export default function CriarPublicacao() {
     const [subtitulo, setSubtitulo] = useState('');
     const [imagem, setImagem] = useState('');
 
+    // USER ID
+    const [userId, setUserId] = useState('');
+
+    useEffect(() => {
+        const carregarUsuario = async () => {
+            try {
+                const id = await AsyncStorage.getItem('userId');
+
+                if (id) {
+                    setUserId(id);
+                }
+            } catch (error) {
+                console.error('Erro ao carregar userId:', error);
+            }
+        };
+
+        carregarUsuario();
+    }, []);
 
     const handleSelecionarCapa = async () => {
         const resultado = await ImagePicker.launchImageLibraryAsync({
@@ -53,33 +71,40 @@ export default function CriarPublicacao() {
                         if (asset.file) {
                             return URL.createObjectURL(asset.file);
                         }
+
                         return asset.uri;
+
                     } else {
                         return asset.uri;
-
                     }
-
                 });
+
                 setArquivos([...arquivos, ...novoPdf]);
             }
 
         } catch (error) {
             console.error("Erro ao escolher PDF:", error);
         }
-
     };
-    
+
     const removerArquivo = (index: number) => {
         setArquivos(arquivos.filter((_, i) => i !== index));
     };
 
     const handlePublicar = async () => {
+
         if (!titulo.trim() || !descricao.trim()) {
             Alert.alert("Erro", "Preencha título e descrição.");
             return;
         }
 
+        if (!userId) {
+            Alert.alert("Erro", "Usuário não identificado.");
+            return;
+        }
+
         try {
+
             const formData = new FormData();
 
             formData.append('titulo', titulo);
@@ -87,31 +112,54 @@ export default function CriarPublicacao() {
             formData.append('descricao', descricao);
             formData.append('urlPublicacao', link);
 
+            // USER ID
+            formData.append('userId', userId);
+
             if (imagem) {
+
                 const nome = imagem.split('/').pop() || 'capa.jpg';
 
                 if (Platform.OS === 'web') {
+
                     const response = await fetch(imagem);
                     const blob = await response.blob();
+
                     formData.append('imagem', blob, nome);
+
                 } else {
+
                     // @ts-ignore
-                    formData.append('imagem', { uri: imagem, name: nome, type: 'image/jpeg' });
+                    formData.append('imagem', {
+                        uri: imagem,
+                        name: nome,
+                        type: 'image/jpeg'
+                    });
                 }
             }
 
             let index = 0;
+
             for (const pdfUri of arquivos) {
+
                 const nomePdf = `arquivo_${index}.pdf`;
 
                 if (Platform.OS === 'web') {
+
                     const response = await fetch(pdfUri);
                     const blob = await response.blob();
+
                     formData.append('pdfs', blob, nomePdf);
+
                 } else {
+
                     // @ts-ignore
-                    formData.append('pdfs', { uri: pdfUri, name: nomePdf, type: 'application/pdf' });
+                    formData.append('pdfs', {
+                        uri: pdfUri,
+                        name: nomePdf,
+                        type: 'application/pdf'
+                    });
                 }
+
                 index++;
             }
 
@@ -120,18 +168,26 @@ export default function CriarPublicacao() {
                 body: formData,
             });
 
-            if (resposta.ok) { 
-                Alert.alert("Sucesso", "Publicação enviada com os arquivos!");
+            if (resposta.ok) {
+
+                Alert.alert("Sucesso", "Publicação enviada com sucesso!");
+
                 router.back();
+
             } else {
+
                 const erroJson = await resposta.json();
+
                 console.error("Erro do servidor:", erroJson);
+
                 Alert.alert("Erro", "O servidor recusou a postagem.");
             }
 
         } catch (error) {
+
             console.error("Erro no envio:", error);
-            Alert.alert("Erro", "Falha catastrófica ao tentar salvar.");
+
+            Alert.alert("Erro", "Falha ao tentar salvar.");
         }
     };
 
@@ -140,18 +196,30 @@ export default function CriarPublicacao() {
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
             style={{ flex: 1 }}
         >
-            <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+
+            <ScrollView
+                style={styles.container}
+                showsVerticalScrollIndicator={false}
+            >
 
                 <View style={[globalStyles.header, styles.header]}>
                     <BotaoVoltar variante='header' cor={COLORS.white} />
-                    <Text style={globalStyles.headerTitle}>Nova Publicação</Text>
+                    <Text style={globalStyles.headerTitle}>
+                        Nova Publicação
+                    </Text>
                 </View>
 
                 <View style={styles.form}>
-                    <Text style={styles.sectionTitle}>Informações Gerais</Text>
+
+                    <Text style={styles.sectionTitle}>
+                        Informações Gerais
+                    </Text>
 
                     <View style={globalStyles.inputGroup}>
-                        <Text style={globalStyles.label}>Título da publicação</Text>
+                        <Text style={globalStyles.label}>
+                            Título da publicação
+                        </Text>
+
                         <TextInput
                             style={globalStyles.input}
                             placeholder="Ex: Processo Seletivo 2026"
@@ -161,7 +229,10 @@ export default function CriarPublicacao() {
                     </View>
 
                     <View style={globalStyles.inputGroup}>
-                        <Text style={globalStyles.label}>Subtítulo da publicação (Opcional)</Text>
+                        <Text style={globalStyles.label}>
+                            Subtítulo da publicação (Opcional)
+                        </Text>
+
                         <TextInput
                             style={globalStyles.input}
                             placeholder="Ex: Edital 01/2026"
@@ -171,7 +242,10 @@ export default function CriarPublicacao() {
                     </View>
 
                     <View style={globalStyles.inputGroup}>
-                        <Text style={globalStyles.label}>Descrição</Text>
+                        <Text style={globalStyles.label}>
+                            Descrição
+                        </Text>
+
                         <TextInput
                             style={[globalStyles.input, styles.textArea]}
                             placeholder="Escreva os detalhes aqui..."
@@ -182,7 +256,10 @@ export default function CriarPublicacao() {
                     </View>
 
                     <View style={globalStyles.inputGroup}>
-                        <Text style={globalStyles.label}>URL da publicação (Opcional)</Text>
+                        <Text style={globalStyles.label}>
+                            URL da publicação (Opcional)
+                        </Text>
+
                         <TextInput
                             style={globalStyles.input}
                             placeholder="https://ifnmg.edu.br/..."
@@ -192,62 +269,168 @@ export default function CriarPublicacao() {
                         />
                     </View>
 
-                    <Text style={styles.sectionTitle}>Arquivos e Mídia</Text>
+                    <Text style={styles.sectionTitle}>
+                        Arquivos e Mídia
+                    </Text>
 
                     <View style={styles.row}>
+
                         <TouchableOpacity
-                            style={[styles.btnAnexoSecundario, imagem ? { borderColor: COLORS.secondary } : null]}
-                            onPress={imagem ? removerImagem : handleSelecionarCapa}>
+                            style={[
+                                styles.btnAnexoSecundario,
+                                imagem
+                                    ? { borderColor: COLORS.secondary }
+                                    : null
+                            ]}
+                            onPress={
+                                imagem
+                                    ? removerImagem
+                                    : handleSelecionarCapa
+                            }
+                        >
+
                             <Ionicons
-                                name={imagem ? "close-circle-outline" : "image-outline"}
+                                name={
+                                    imagem
+                                        ? "close-circle-outline"
+                                        : "image-outline"
+                                }
                                 size={20}
-                                color={imagem ? COLORS.secondary : COLORS.gray}
+                                color={
+                                    imagem
+                                        ? COLORS.secondary
+                                        : COLORS.gray
+                                }
                             />
-                            <Text style={[styles.txtAnexoSecundario, imagem ? { color: COLORS.secondary } : null]}>
-                                {imagem ? "Remover Imagem" : "Adicionar Imagem"}
+
+                            <Text
+                                style={[
+                                    styles.txtAnexoSecundario,
+                                    imagem
+                                        ? { color: COLORS.secondary }
+                                        : null
+                                ]}
+                            >
+                                {
+                                    imagem
+                                        ? "Remover Imagem"
+                                        : "Adicionar Imagem"
+                                }
                             </Text>
+
                         </TouchableOpacity>
 
-                        <TouchableOpacity style={styles.btnAnexoPrincipal} onPress={handleAnexarPDF}>
-                            <Ionicons name="add-circle-outline" size={20} color={COLORS.white} />
-                            <Text style={styles.txtAnexoPrincipal}>Add PDF (Anexos)</Text>
+                        <TouchableOpacity
+                            style={styles.btnAnexoPrincipal}
+                            onPress={handleAnexarPDF}
+                        >
+
+                            <Ionicons
+                                name="add-circle-outline"
+                                size={20}
+                                color={COLORS.white}
+                            />
+
+                            <Text style={styles.txtAnexoPrincipal}>
+                                Add PDF (Anexos)
+                            </Text>
+
                         </TouchableOpacity>
+
                     </View>
 
                     {arquivos.map((item, index) => (
-                        <View key={index} style={styles.cardArquivo}>
-                            <Ionicons name="document-text" size={20} color={COLORS.secondary} />
-                            <Text style={styles.nomeArquivo} numberOfLines={1}>{item}</Text>
-                            <TouchableOpacity onPress={() => removerArquivo(index)}>
-                                <Ionicons name="trash-outline" size={18} color={COLORS.placeholder} />
+
+                        <View
+                            key={index}
+                            style={styles.cardArquivo}
+                        >
+
+                            <Ionicons
+                                name="document-text"
+                                size={20}
+                                color={COLORS.secondary}
+                            />
+
+                            <Text
+                                style={styles.nomeArquivo}
+                                numberOfLines={1}
+                            >
+                                {item}
+                            </Text>
+
+                            <TouchableOpacity
+                                onPress={() => removerArquivo(index)}
+                            >
+
+                                <Ionicons
+                                    name="trash-outline"
+                                    size={18}
+                                    color={COLORS.placeholder}
+                                />
+
                             </TouchableOpacity>
+
                         </View>
                     ))}
+
                 </View>
 
                 <View style={styles.dividerContainer}>
                     <View style={styles.divider} />
-                    <Text style={styles.previewLabel}>PRÉ-VISUALIZAÇÃO NO APP</Text>
+
+                    <Text style={styles.previewLabel}>
+                        PRÉ-VISUALIZAÇÃO NO APP
+                    </Text>
                 </View>
 
                 <View style={styles.previewContainer}>
+
                     <Card
                         imagem={imagem}
                         titulo={titulo || "Insira um título"}
                         subtitulo={subtitulo || ""}
-                        descricao={descricao || "A descrição resumida será exibida neste local após o preenchimento."}
+                        descricao={
+                            descricao ||
+                            "A descrição resumida será exibida neste local após o preenchimento."
+                        }
                         pdfs={arquivos}
-                        linkExterno={link} _id={''} />
+                        linkExterno={link}
+                        _id={''}
+
+                        // USER ID
+                        userId={userId}
+                    />
+
                 </View>
 
-                <View style={{ paddingHorizontal: 10, paddingBottom: 10, marginTop: 15 }}>
-                    <TouchableOpacity style={globalStyles.btnPrimary} onPress={handlePublicar}>
-                        <Text style={globalStyles.btnPrimaryText}>Publicar Agora</Text>
+                <View
+                    style={{
+                        paddingHorizontal: 10,
+                        paddingBottom: 10,
+                        marginTop: 15
+                    }}
+                >
+
+                    <TouchableOpacity
+                        style={globalStyles.btnPrimary}
+                        onPress={handlePublicar}
+                    >
+
+                        <Text style={globalStyles.btnPrimaryText}>
+                            Publicar Agora
+                        </Text>
+
                     </TouchableOpacity>
-                    <Text style={styles.previewLabel}>©2026 - Portal IFNMG </Text>
+
+                    <Text style={styles.previewLabel}>
+                        ©2026 - Portal IFNMG
+                    </Text>
+
                 </View>
 
             </ScrollView>
+
         </KeyboardAvoidingView>
     );
 }
