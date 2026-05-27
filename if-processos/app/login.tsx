@@ -32,9 +32,9 @@ export default function Login() {
         Alert.alert('Sucesso', 'Login realizado!');
 
         if (role === 'admin') {
-          router.push('/admin/criar-publicacao');
+          router.push('/admin/home');
         } else {
-          router.push('/home');
+          router.push('/usuario/home');
         }
       }
     } catch (error: any) {
@@ -105,7 +105,7 @@ export default function Login() {
             </View>
 
             <View style={styles.footer}>
-              <TouchableOpacity style={styles.visitButton} onPress={() => router.push('/home')} >
+              <TouchableOpacity style={styles.visitButton} onPress={() => router.push('/visitante/home')} >
                 <Text style={styles.visitText}>Continuar como visitante</Text>
                 <Ionicons name="arrow-forward" size={18} color="#000" />
               </TouchableOpacity>
