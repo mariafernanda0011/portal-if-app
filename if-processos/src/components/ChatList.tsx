@@ -23,13 +23,20 @@ export default function ChatList({ modo }: { modo: 'admin' | 'user' }) {
   const router = useRouter();
   const [conversas, setConversas] = useState<Conversa[]>([]);
   const [carregando, setCarregando] = useState(true);
+  const [usuarioAtualId, setUsuarioAtualId] = useState('');
 
   const carregarConversas = useCallback(async (silencioso = false) => {
     try {
-      const resposta = await axios.get(`${API_URL}/chats`, {
-        headers: criarCabecalhoAuth(),
-      });
+      const [resposta, respostaPerfil] = await Promise.all([
+        axios.get(`${API_URL}/chats`, {
+          headers: criarCabecalhoAuth(),
+        }),
+        axios.get(`${API_URL}/auth/perfil`, {
+          headers: criarCabecalhoAuth(),
+        }),
+      ]);
       setConversas(resposta.data);
+      setUsuarioAtualId(respostaPerfil.data?._id || '');
     } catch (error: any) {
       if (!silencioso) {
         Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível carregar as conversas.');
@@ -75,7 +82,7 @@ export default function ChatList({ modo }: { modo: 'admin' | 'user' }) {
           renderItem={({ item }) => (
             <ConversaItem
               conversa={item}
-              pessoa={modo === 'admin' ? item.aluno : item.admin}
+              pessoa={outraPessoa(item, usuarioAtualId, modo)}
               onPress={() => router.push(`/chat/${item._id}` as never)}
             />
           )}
@@ -96,6 +103,14 @@ export default function ChatList({ modo }: { modo: 'admin' | 'user' }) {
       {modo === 'user' && <UserBottomNav ativa="conversas" />}
     </View>
   );
+}
+
+function outraPessoa(conversa: Conversa, usuarioAtualId: string, modo: 'admin' | 'user') {
+  if (usuarioAtualId) {
+    return conversa.aluno?._id === usuarioAtualId ? conversa.admin : conversa.aluno;
+  }
+
+  return modo === 'admin' ? conversa.aluno : conversa.admin;
 }
 
 function ConversaItem({

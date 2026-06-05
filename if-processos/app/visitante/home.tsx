@@ -89,7 +89,12 @@ export default function HomeVisitante() {
         <FlatList
           data={filtradas}
           keyExtractor={(item) => item._id}
-          renderItem={({ item }) => <Card {...item} />}
+          renderItem={({ item }) => (
+            <Card
+              {...item}
+              onAbrirDetalhes={() => router.push(`/publicacao/${item._id}` as never)}
+            />
+          )}
           contentContainerStyle={styles.listContent}
           ListEmptyComponent={
             <Text style={styles.empty}>

@@ -539,6 +539,13 @@ export default function HomeAdmin() {
                 <View style={styles.postActions}>
                   <TouchableOpacity
                     style={styles.secondaryAction}
+                    onPress={() => router.push(`/publicacao/${publicacao._id}` as never)}
+                  >
+                    <Ionicons name="chatbubble-ellipses-outline" size={17} color={COLORS.primary} />
+                    <Text style={styles.secondaryActionText}>Comentários</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.secondaryAction}
                     onPress={() => abrirEdicaoPublicacao(publicacao)}
                   >
                     <Ionicons name="create-outline" size={17} color={COLORS.primary} />

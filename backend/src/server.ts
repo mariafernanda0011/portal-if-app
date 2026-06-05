@@ -14,6 +14,7 @@ import { Conversation } from './models/Conversation';
 import { Message } from './models/Message';
 import { PostNotification } from './models/PostNotification';
 import { PasswordResetCode } from './models/PasswordResetCode';
+import { Comment } from './models/Comment';
 import multer from 'multer';
 
 const app = express();
@@ -51,6 +52,24 @@ const autenticar = (req: RequisicaoAutenticada, res: Response, next: NextFunctio
 
   if (!token) {
     return res.status(401).json({ erro: 'Faça login para continuar.' });
+  }
+
+  try {
+    const payload = jwt.verify(token, CHAVE_SECRETA) as { id: string; role: string };
+    req.usuario = payload;
+    next();
+  } catch {
+    return res.status(401).json({ erro: 'Sua sessão expirou. Faça login novamente.' });
+  }
+};
+
+const autenticarOpcional = (req: RequisicaoAutenticada, res: Response, next: NextFunction) => {
+  const authorization = req.headers.authorization;
+  const token = authorization?.startsWith('Bearer ') ? authorization.slice(7) : '';
+
+  if (!token) {
+    next();
+    return;
   }
 
   try {
@@ -111,11 +130,11 @@ const enviarCodigoRecuperacao = async (email: string, codigo: string) => {
   await transporter.sendMail({
     from: SMTP_FROM,
     to: email,
-    subject: 'Código de recuperação - Portal IFNMG',
+    subject: 'Código de recuperação - Portal-IFNMG',
     text: `Seu código de recuperação é ${codigo}. Ele expira em 15 minutos.`,
     html: `
       <p>Olá,</p>
-      <p>Seu código de recuperação do Portal IFNMG é:</p>
+      <p>Seu código de recuperação do Portal-IFNMG é:</p>
       <h2>${codigo}</h2>
       <p>Ele expira em 15 minutos. Se você não solicitou essa alteração, ignore este e-mail.</p>
     `
@@ -217,12 +236,23 @@ app.get('/publicacoes', async (req, res) => {
   }
 });
 
-app.get('/publicacoes/:id', async (req, res) => {
+app.get('/publicacoes/:id', autenticarOpcional, async (req: RequisicaoAutenticada, res) => {
   try {
-    const publicacao = await Post.findOne({
-      _id: req.params.id,
-      encerrada: { $ne: true }
-    }).populate('autor', 'nome cargo');
+    const filtro = req.usuario?.role === 'admin'
+      ? {
+        _id: req.params.id,
+        $or: [
+          { encerrada: { $ne: true } },
+          { autor: req.usuario.id },
+          { autor: { $exists: false } }
+        ]
+      }
+      : {
+        _id: req.params.id,
+        encerrada: { $ne: true }
+      };
+
+    const publicacao = await Post.findOne(filtro).populate('autor', 'nome cargo');
 
     if (!publicacao) {
       return res.status(404).json({ erro: 'Publicação não encontrada.' });
@@ -232,6 +262,93 @@ app.get('/publicacoes/:id', async (req, res) => {
   } catch (error) {
     console.error("Erro ao buscar publicação:", error);
     res.status(500).json({ erro: "Erro interno ao buscar publicação." });
+  }
+});
+
+app.get('/publicacoes/:id/comentarios', autenticarOpcional, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const filtroPublicacao = req.usuario?.role === 'admin'
+      ? {
+        _id: req.params.id,
+        $or: [
+          { encerrada: { $ne: true } },
+          { autor: req.usuario.id },
+          { autor: { $exists: false } }
+        ]
+      }
+      : {
+        _id: req.params.id,
+        encerrada: { $ne: true }
+      };
+
+    const publicacao = await Post.exists(filtroPublicacao);
+    if (!publicacao) {
+      return res.status(404).json({ erro: 'Publicação não encontrada.' });
+    }
+
+    const comentarios = await Comment.find({ publicacao: req.params.id })
+      .populate('usuario', 'nome email role cargo')
+      .sort({ createdAt: -1 });
+
+    res.status(200).json(comentarios);
+  } catch (error) {
+    console.error('Erro ao buscar comentários:', error);
+    res.status(500).json({ erro: 'Não foi possível carregar os comentários.' });
+  }
+});
+
+app.post('/publicacoes/:id/comentarios', autenticarOpcional, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const texto = String(req.body.texto || '').trim();
+    const nomeVisitante = String(req.body.nomeVisitante || '').trim();
+
+    if (!texto) {
+      return res.status(400).json({ erro: 'Digite um comentário.' });
+    }
+
+    if (!req.usuario && !nomeVisitante) {
+      return res.status(400).json({ erro: 'Informe seu nome para comentar como visitante.' });
+    }
+
+    if (nomeVisitante.length > 80) {
+      return res.status(400).json({ erro: 'O nome deve ter no máximo 80 caracteres.' });
+    }
+
+    if (texto.length > 500) {
+      return res.status(400).json({ erro: 'O comentário deve ter no máximo 500 caracteres.' });
+    }
+
+    const filtroPublicacao = req.usuario?.role === 'admin'
+      ? {
+        _id: req.params.id,
+        $or: [
+          { encerrada: { $ne: true } },
+          { autor: req.usuario.id },
+          { autor: { $exists: false } }
+        ]
+      }
+      : {
+        _id: req.params.id,
+        encerrada: { $ne: true }
+      };
+
+    const publicacao = await Post.findOne(filtroPublicacao);
+
+    if (!publicacao) {
+      return res.status(404).json({ erro: 'Publicação não encontrada ou encerrada.' });
+    }
+
+    const comentario = await Comment.create({
+      publicacao: publicacao._id,
+      ...(req.usuario ? { usuario: req.usuario.id } : { nomeVisitante }),
+      texto
+    });
+    await comentario.populate('usuario', 'nome email role cargo');
+
+    res.status(201).json(comentario);
+  } catch (error) {
+    console.error('Erro ao criar comentário:', error);
+    res.status(500).json({ erro: 'Não foi possível publicar o comentário.' });
   }
 });
 
@@ -490,10 +607,6 @@ app.patch('/notificacoes/:id/lida', autenticar, async (req: RequisicaoAutenticad
 
 app.post('/chats/publicacoes/:postId', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
-    if (req.usuario!.role !== 'user') {
-      return res.status(403).json({ erro: 'Apenas alunos podem iniciar uma conversa pela publicação.' });
-    }
-
     const publicacao = await Post.findOne({
       _id: req.params.postId,
       encerrada: { $ne: true }
@@ -505,6 +618,10 @@ app.post('/chats/publicacoes/:postId', autenticar, async (req: RequisicaoAutenti
 
     if (!publicacao.autor) {
       return res.status(400).json({ erro: 'Esta publicação ainda não possui um responsável disponível.' });
+    }
+
+    if (String(publicacao.autor) === req.usuario!.id) {
+      return res.status(400).json({ erro: 'Você já é o responsável por esta publicação.' });
     }
 
     const conversa = await Conversation.findOneAndUpdate(
@@ -538,7 +655,12 @@ app.post('/chats/publicacoes/:postId', autenticar, async (req: RequisicaoAutenti
 app.get('/chats', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
     const filtro = req.usuario!.role === 'admin'
-      ? { admin: req.usuario!.id }
+      ? {
+        $or: [
+          { admin: req.usuario!.id },
+          { aluno: req.usuario!.id }
+        ]
+      }
       : { aluno: req.usuario!.id };
 
     const conversas = await Conversation.find(filtro)
@@ -576,7 +698,12 @@ app.get('/chats', autenticar, async (req: RequisicaoAutenticada, res) => {
 app.get('/chats/nao-lidas', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
     const filtro = req.usuario!.role === 'admin'
-      ? { admin: req.usuario!.id }
+      ? {
+        $or: [
+          { admin: req.usuario!.id },
+          { aluno: req.usuario!.id }
+        ]
+      }
       : { aluno: req.usuario!.id };
     const conversas = await Conversation.find(filtro).select('_id');
     const total = await Message.countDocuments({

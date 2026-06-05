@@ -67,7 +67,10 @@ export default function Home() {
                     keyExtractor={(item) => item._id}
                     contentContainerStyle={styles.listContent}
                     renderItem={({ item }) => (
-                        <Card {...item} />
+                        <Card
+                            {...item}
+                            onAbrirDetalhes={() => router.push(`/publicacao/${item._id}` as never)}
+                        />
                     )}
                     ListEmptyComponent={
                         <Text style={{ textAlign: 'center', color: COLORS.gray, marginTop: 50 }}>
