@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
@@ -23,6 +23,15 @@ type Comentario = {
   nomeVisitante?: string;
 };
 
+type Interessado = {
+  _id: string;
+  createdAt: string;
+  usuario?: {
+    nome?: string;
+    email?: string;
+  };
+};
+
 export default function DetalhesPublicacao() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -35,10 +44,25 @@ export default function DetalhesPublicacao() {
   const [enviandoComentario, setEnviandoComentario] = useState(false);
   const usuarioAutenticado = Boolean(obterToken());
   const [usuarioAtualId, setUsuarioAtualId] = useState('');
+  const [usuarioAtualRole, setUsuarioAtualRole] = useState('');
+  const [interessado, setInteressado] = useState(false);
+  const [marcandoInteresse, setMarcandoInteresse] = useState(false);
+  const [modalInteressadosVisivel, setModalInteressadosVisivel] = useState(false);
+  const [interessados, setInteressados] = useState<Interessado[]>([]);
+  const [mensagemInteressados, setMensagemInteressados] = useState('');
+  const [carregandoInteressados, setCarregandoInteressados] = useState(false);
+  const [salvandoMensagem, setSalvandoMensagem] = useState(false);
   const chatDisponivel = Boolean(
     usuarioAutenticado &&
     publicacao?.autor?._id &&
     publicacao.autor._id !== usuarioAtualId
+  );
+  const ehAluno = usuarioAtualRole === 'user';
+  const ehAdminCriador = Boolean(usuarioAtualRole === 'admin' && publicacao?.autor?._id === usuarioAtualId);
+  const mensagemPublicacaoInteressados = publicacao?.mensagemInteressados?.trim() || '';
+  const mostrarMensagemInteressados = Boolean(
+    mensagemPublicacaoInteressados &&
+    (ehAdminCriador || (ehAluno && interessado))
   );
 
   const carregarPublicacao = useCallback(async () => {
@@ -56,6 +80,16 @@ export default function DetalhesPublicacao() {
       setPublicacao(respostaPublicacao.data);
       setComentarios(respostaComentarios.data);
       setUsuarioAtualId(respostaPerfil?.data?._id || '');
+      setUsuarioAtualRole(respostaPerfil?.data?.role || '');
+
+      if (respostaPerfil?.data?.role === 'user') {
+        const respostaInteresse = await axios.get(`${API_URL}/publicacoes/${id}/interesse/status`, {
+          headers: criarCabecalhoAuth(),
+        });
+        setInteressado(respostaInteresse.data.interessado);
+      } else {
+        setInteressado(false);
+      }
     } catch (error: any) {
       Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível carregar a publicação.');
     } finally {
@@ -112,6 +146,72 @@ export default function DetalhesPublicacao() {
     }
   };
 
+  const registrarInteresse = async () => {
+    if (marcandoInteresse || interessado) return;
+
+    try {
+      setMarcandoInteresse(true);
+      await axios.post(`${API_URL}/publicacoes/${id}/interesse`, {}, {
+        headers: criarCabecalhoAuth(),
+      });
+      setInteressado(true);
+      Alert.alert('Interesse registrado', 'O responsável pela publicação será avisado.');
+    } catch (error: any) {
+      Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível registrar seu interesse.');
+    } finally {
+      setMarcandoInteresse(false);
+    }
+  };
+
+  const carregarInteressados = async () => {
+    if (!ehAdminCriador) return;
+
+    try {
+      setCarregandoInteressados(true);
+      const resposta = await axios.get(`${API_URL}/admin/publicacoes/${id}/interessados`, {
+        headers: criarCabecalhoAuth(),
+      });
+      setInteressados(resposta.data.interessados || []);
+      setMensagemInteressados(resposta.data.mensagemInteressados || '');
+      setModalInteressadosVisivel(true);
+    } catch (error: any) {
+      Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível carregar os interessados.');
+    } finally {
+      setCarregandoInteressados(false);
+    }
+  };
+
+  const salvarMensagemInteressados = async () => {
+    const mensagem = mensagemInteressados.trim();
+
+    if (!mensagem) {
+      Alert.alert('Mensagem', 'Digite uma mensagem para os interessados.');
+      return;
+    }
+
+    try {
+      setSalvandoMensagem(true);
+      const resposta = await axios.put(
+        `${API_URL}/admin/publicacoes/${id}/interessados/mensagem`,
+        { mensagem },
+        { headers: criarCabecalhoAuth() }
+      );
+      setMensagemInteressados(resposta.data.mensagemInteressados || mensagem);
+      setPublicacao((atual) => atual ? {
+        ...atual,
+        mensagemInteressados: resposta.data.mensagemInteressados || mensagem
+      } : atual);
+      Alert.alert(
+        'Mensagem salva',
+        `${resposta.data.notificacoesEnviadas || 0} interessado(s) receberam essa mensagem agora. Quem já recebeu antes não recebe duplicado.`
+      );
+    } catch (error: any) {
+      Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível enviar a mensagem.');
+    } finally {
+      setSalvandoMensagem(false);
+    }
+  };
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -128,6 +228,32 @@ export default function DetalhesPublicacao() {
           {publicacao ? (
             <>
               <Card {...publicacao} favoritosHabilitados />
+              {ehAluno && (
+                <TouchableOpacity
+                  style={[styles.interestButton, interessado && styles.interestButtonActive]}
+                  onPress={registrarInteresse}
+                  disabled={interessado || marcandoInteresse}
+                >
+                  {marcandoInteresse ? (
+                    <ActivityIndicator size="small" color={COLORS.white} />
+                  ) : (
+                    <Ionicons name={interessado ? 'checkmark-circle-outline' : 'hand-left-outline'} size={20} color={COLORS.white} />
+                  )}
+                  <Text style={styles.interestButtonText}>
+                    {interessado ? 'Interesse registrado' : 'Tenho interesse'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              {ehAdminCriador && (
+                <TouchableOpacity style={styles.adminInterestButton} onPress={carregarInteressados} disabled={carregandoInteressados}>
+                  {carregandoInteressados ? (
+                    <ActivityIndicator size="small" color={COLORS.primary} />
+                  ) : (
+                    <Ionicons name="people-outline" size={20} color={COLORS.primary} />
+                  )}
+                  <Text style={styles.adminInterestButtonText}>Interessados</Text>
+                </TouchableOpacity>
+              )}
               {chatDisponivel && (
                 <TouchableOpacity style={styles.chatButton} onPress={iniciarChat} disabled={iniciandoChat}>
                   <Ionicons name="chatbubbles-outline" size={20} color={COLORS.white} />
@@ -135,6 +261,15 @@ export default function DetalhesPublicacao() {
                     {iniciandoChat ? 'Abrindo conversa...' : 'Falar com o responsável'}
                   </Text>
                 </TouchableOpacity>
+              )}
+              {mostrarMensagemInteressados && (
+                <View style={styles.interestInfoBox}>
+                  <View style={styles.interestInfoHeader}>
+                    <Ionicons name="information-circle-outline" size={20} color={COLORS.primary} />
+                    <Text style={styles.interestInfoTitle}>Informações para interessados</Text>
+                  </View>
+                  <Text style={styles.interestInfoText}>{mensagemPublicacaoInteressados}</Text>
+                </View>
               )}
               <View style={styles.commentsSection}>
                 <View style={styles.commentsHeader}>
@@ -202,6 +337,75 @@ export default function DetalhesPublicacao() {
           )}
         </ScrollView>
       )}
+
+      <Modal
+        visible={modalInteressadosVisivel}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalInteressadosVisivel(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.interestedPanel}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Interessados</Text>
+                <Text style={styles.modalSubtitle}>{interessados.length} aluno(s) marcaram interesse</Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setModalInteressadosVisivel(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView contentContainerStyle={styles.interestedContent}>
+              <Text style={styles.infoLabel}>Informações para os interessados</Text>
+              <TextInput
+                value={mensagemInteressados}
+                onChangeText={setMensagemInteressados}
+                placeholder="Digite uma mensagem com mais informações..."
+                placeholderTextColor={COLORS.placeholder}
+                style={styles.infoInput}
+                multiline
+                maxLength={1000}
+              />
+              <TouchableOpacity
+                style={[styles.saveInfoButton, salvandoMensagem && styles.saveInfoButtonDisabled]}
+                onPress={salvarMensagemInteressados}
+                disabled={salvandoMensagem}
+              >
+                {salvandoMensagem ? (
+                  <ActivityIndicator size="small" color={COLORS.white} />
+                ) : (
+                  <Ionicons name="send-outline" size={18} color={COLORS.white} />
+                )}
+                <Text style={styles.saveInfoText}>
+                  {salvandoMensagem ? 'Enviando...' : 'Salvar e notificar'}
+                </Text>
+              </TouchableOpacity>
+
+              <View style={styles.interestedListHeader}>
+                <Ionicons name="people-outline" size={18} color={COLORS.primary} />
+                <Text style={styles.interestedListTitle}>Lista de interessados</Text>
+              </View>
+
+              {interessados.length === 0 ? (
+                <Text style={styles.noInterested}>Nenhum aluno marcou interesse ainda.</Text>
+              ) : (
+                interessados.map((item) => (
+                  <View key={item._id} style={styles.interestedItem}>
+                    <View style={styles.commentAvatar}>
+                      <Ionicons name="person-outline" size={18} color={COLORS.primary} />
+                    </View>
+                    <View style={styles.interestedInfo}>
+                      <Text style={styles.interestedName}>{item.usuario?.nome || 'Aluno'}</Text>
+                      <Text style={styles.interestedEmail}>{item.usuario?.email || 'E-mail não informado'}</Text>
+                    </View>
+                  </View>
+                ))
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -261,11 +465,72 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     backgroundColor: COLORS.primary,
   },
+  interestButton: {
+    minHeight: 48,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: COLORS.secondary,
+  },
+  interestButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  interestButtonText: {
+    marginLeft: 8,
+    color: COLORS.white,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  adminInterestButton: {
+    minHeight: 48,
+    marginTop: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#c8e6c9',
+    borderRadius: 8,
+    backgroundColor: '#e8f5e9',
+  },
+  adminInterestButtonText: {
+    marginLeft: 8,
+    color: COLORS.primary,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
   chatButtonText: {
     marginLeft: 8,
     color: COLORS.white,
     fontSize: 15,
     fontWeight: 'bold',
+  },
+  interestInfoBox: {
+    marginTop: 12,
+    padding: 13,
+    borderWidth: 1,
+    borderColor: '#c8e6c9',
+    borderRadius: 8,
+    backgroundColor: '#f4fbf5',
+  },
+  interestInfoHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 7,
+  },
+  interestInfoTitle: {
+    marginLeft: 7,
+    color: COLORS.primary,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  interestInfoText: {
+    color: COLORS.textDark,
+    fontSize: 13,
+    lineHeight: 19,
   },
   commentsSection: {
     marginTop: 14,
@@ -381,5 +646,118 @@ const styles = StyleSheet.create({
     color: COLORS.gray,
     fontSize: 13,
     lineHeight: 18,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.35)',
+  },
+  interestedPanel: {
+    maxHeight: '84%',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: COLORS.white,
+  },
+  modalHeader: {
+    paddingHorizontal: 18,
+    paddingVertical: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
+  },
+  modalTitle: {
+    color: COLORS.textDark,
+    fontSize: 20,
+    fontWeight: 'bold',
+  },
+  modalSubtitle: {
+    marginTop: 2,
+    color: COLORS.gray,
+    fontSize: 12,
+  },
+  modalCloseButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  interestedContent: {
+    padding: 15,
+    paddingBottom: 26,
+  },
+  infoLabel: {
+    marginBottom: 7,
+    color: COLORS.textDark,
+    fontSize: 13,
+    fontWeight: 'bold',
+  },
+  infoInput: {
+    minHeight: 98,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
+    color: COLORS.textDark,
+    backgroundColor: COLORS.inputBg,
+    textAlignVertical: 'top',
+  },
+  saveInfoButton: {
+    minHeight: 44,
+    marginTop: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+    backgroundColor: COLORS.primary,
+  },
+  saveInfoButtonDisabled: {
+    opacity: 0.55,
+  },
+  saveInfoText: {
+    marginLeft: 7,
+    color: COLORS.white,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  interestedListHeader: {
+    marginTop: 18,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  interestedListTitle: {
+    marginLeft: 6,
+    color: COLORS.textDark,
+    fontSize: 15,
+    fontWeight: 'bold',
+  },
+  noInterested: {
+    paddingVertical: 18,
+    color: COLORS.gray,
+    textAlign: 'center',
+  },
+  interestedItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.lightGray,
+  },
+  interestedInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  interestedName: {
+    color: COLORS.textDark,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  interestedEmail: {
+    marginTop: 2,
+    color: COLORS.gray,
+    fontSize: 12,
   },
 });

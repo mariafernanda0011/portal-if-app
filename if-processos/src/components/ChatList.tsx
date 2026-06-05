@@ -105,12 +105,18 @@ export default function ChatList({ modo }: { modo: 'admin' | 'user' }) {
   );
 }
 
-function outraPessoa(conversa: Conversa, usuarioAtualId: string, modo: 'admin' | 'user') {
+function outraPessoa(conversa: Conversa, usuarioAtualId: string, modo: 'admin' | 'user'): PessoaChat | null {
   if (usuarioAtualId) {
-    return conversa.aluno?._id === usuarioAtualId ? conversa.admin : conversa.aluno;
+    if (conversa.aluno?._id === usuarioAtualId) {
+      return conversa.admin || null;
+    }
+
+    if (conversa.admin?._id === usuarioAtualId) {
+      return conversa.aluno || null;
+    }
   }
 
-  return modo === 'admin' ? conversa.aluno : conversa.admin;
+  return modo === 'admin' ? conversa.aluno || null : conversa.admin || null;
 }
 
 function ConversaItem({
@@ -119,18 +125,20 @@ function ConversaItem({
   onPress,
 }: {
   conversa: Conversa;
-  pessoa: PessoaChat;
+  pessoa: PessoaChat | null;
   onPress: () => void;
 }) {
+  const nome = pessoa?.nome || pessoa?.email || 'Usuário indisponível';
+
   return (
     <TouchableOpacity style={styles.card} onPress={onPress}>
       <Avatar pessoa={pessoa} />
       <View style={styles.cardContent}>
         <View style={styles.cardTop}>
-          <Text style={styles.personName} numberOfLines={1}>{pessoa.nome || 'Usuário'}</Text>
+          <Text style={styles.personName} numberOfLines={1}>{nome}</Text>
           <Text style={styles.time}>{formatarHorario(conversa.ultimaMensagemEm)}</Text>
         </View>
-        {!!pessoa.email && <Text style={styles.email} numberOfLines={1}>{pessoa.email}</Text>}
+        {!!pessoa?.email && <Text style={styles.email} numberOfLines={1}>{pessoa.email}</Text>}
         <Text style={styles.postTitle} numberOfLines={1}>
           <Ionicons name="document-text-outline" size={12} color={COLORS.primary} />{' '}
           {conversa.publicacao?.titulo || 'Publicação'}
@@ -151,8 +159,8 @@ function ConversaItem({
   );
 }
 
-function Avatar({ pessoa }: { pessoa: PessoaChat }) {
-  if (pessoa.foto) {
+function Avatar({ pessoa }: { pessoa: PessoaChat | null }) {
+  if (pessoa?.foto) {
     const uri = pessoa.foto.startsWith('http') ? pessoa.foto : `${API_URL}/${pessoa.foto}`;
     return <Image source={{ uri }} style={styles.avatar} />;
   }

@@ -13,8 +13,10 @@ import { Favorite } from './models/Favorite';
 import { Conversation } from './models/Conversation';
 import { Message } from './models/Message';
 import { PostNotification } from './models/PostNotification';
+import { InterestMessageNotification } from './models/InterestMessageNotification';
 import { PasswordResetCode } from './models/PasswordResetCode';
 import { Comment } from './models/Comment';
+import { PostInterest } from './models/PostInterest';
 import multer from 'multer';
 
 const app = express();
@@ -110,6 +112,31 @@ const gerarTokenApp = (usuario: { _id: unknown; role: string }) => jwt.sign(
 );
 
 const gerarCodigoRecuperacao = () => String(randomInt(100000, 1000000));
+
+const notificarInteressadosDaPublicacao = async (publicacaoId: unknown, mensagem: string) => {
+  const texto = mensagem.trim();
+  if (!texto) return 0;
+
+  const interesses = await PostInterest.find({ publicacao: publicacaoId }).select('usuario');
+  if (interesses.length === 0) return 0;
+
+  const resultado = await InterestMessageNotification.insertMany(
+    interesses.map((interesse) => ({
+      usuario: interesse.usuario,
+      publicacao: publicacaoId,
+      mensagem: texto
+    })),
+    { ordered: false }
+  ).catch((error) => {
+    if (error?.code === 11000 || error?.writeErrors) {
+      return Array.isArray(error.insertedDocs) ? error.insertedDocs : [];
+    }
+
+    throw error;
+  });
+
+  return Array.isArray(resultado) ? resultado.length : 0;
+};
 
 const enviarCodigoRecuperacao = async (email: string, codigo: string) => {
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
@@ -352,6 +379,78 @@ app.post('/publicacoes/:id/comentarios', autenticarOpcional, async (req: Requisi
   }
 });
 
+app.get('/publicacoes/:id/interesse/status', autenticar, async (req: RequisicaoAutenticada, res) => {
+  try {
+    if (req.usuario!.role !== 'user') {
+      return res.status(200).json({ interessado: false });
+    }
+
+    const interesse = await PostInterest.exists({
+      publicacao: req.params.id,
+      usuario: req.usuario!.id
+    });
+
+    res.status(200).json({ interessado: !!interesse });
+  } catch (error) {
+    console.error('Erro ao verificar interesse:', error);
+    res.status(500).json({ erro: 'Não foi possível verificar seu interesse.' });
+  }
+});
+
+app.post('/publicacoes/:id/interesse', autenticar, async (req: RequisicaoAutenticada, res) => {
+  try {
+    if (req.usuario!.role !== 'user') {
+      return res.status(403).json({ erro: 'Apenas alunos podem marcar interesse.' });
+    }
+
+    const publicacao = await Post.findOne({
+      _id: req.params.id,
+      encerrada: { $ne: true }
+    });
+
+    if (!publicacao) {
+      return res.status(404).json({ erro: 'Publicação não encontrada.' });
+    }
+
+    const jaExistia = await PostInterest.exists({
+      publicacao: publicacao._id,
+      usuario: req.usuario!.id
+    });
+
+    await PostInterest.findOneAndUpdate(
+      {
+        publicacao: publicacao._id,
+        usuario: req.usuario!.id
+      },
+      {
+        publicacao: publicacao._id,
+        usuario: req.usuario!.id
+      },
+      { upsert: true, new: true }
+    );
+
+    if (!jaExistia && publicacao.mensagemInteressados?.trim()) {
+      await InterestMessageNotification.create({
+        usuario: req.usuario!.id,
+        publicacao: publicacao._id,
+        mensagem: publicacao.mensagemInteressados.trim()
+      }).catch((error) => {
+        if (error?.code !== 11000) {
+          throw error;
+        }
+      });
+    }
+
+    res.status(201).json({
+      mensagem: jaExistia ? 'Seu interesse já estava registrado.' : 'Interesse registrado com sucesso.',
+      interessado: true
+    });
+  } catch (error) {
+    console.error('Erro ao registrar interesse:', error);
+    res.status(500).json({ erro: 'Não foi possível registrar seu interesse.' });
+  }
+});
+
 app.get('/favorites', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
     const favoritos = await Favorite.find({ usuario: req.usuario!.id })
@@ -523,18 +622,259 @@ app.patch('/admin/publicacoes/:id/reativar', autenticar, autorizarAdmin, async (
   }
 });
 
+app.get('/admin/interesses/nao-lidos', autenticar, autorizarAdmin, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const publicacoes = await Post.find({ autor: req.usuario!.id }).select('_id');
+    const publicacoesIds = publicacoes.map((publicacao) => publicacao._id);
+    const [totalInteresses, totalComentarios] = await Promise.all([
+      PostInterest.countDocuments({
+        publicacao: { $in: publicacoesIds },
+        visualizadoPeloAdmin: { $ne: true }
+      }),
+      Comment.countDocuments({
+        publicacao: { $in: publicacoesIds },
+        visualizadoPeloAdmin: { $ne: true },
+        $or: [
+          { usuario: { $ne: req.usuario!.id } },
+          { usuario: { $exists: false } }
+        ]
+      })
+    ]);
+
+    res.status(200).json({ total: totalInteresses + totalComentarios });
+  } catch (error) {
+    console.error('Erro ao contar notificações do admin:', error);
+    res.status(500).json({ erro: 'Não foi possível carregar o contador de notificações.' });
+  }
+});
+
+app.get('/admin/notificacoes/nao-lidas', autenticar, autorizarAdmin, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const publicacoes = await Post.find({ autor: req.usuario!.id }).select('_id');
+    const publicacoesIds = publicacoes.map((publicacao) => publicacao._id);
+    const [totalInteresses, totalComentarios] = await Promise.all([
+      PostInterest.countDocuments({
+        publicacao: { $in: publicacoesIds },
+        visualizadoPeloAdmin: { $ne: true }
+      }),
+      Comment.countDocuments({
+        publicacao: { $in: publicacoesIds },
+        visualizadoPeloAdmin: { $ne: true },
+        $or: [
+          { usuario: { $ne: req.usuario!.id } },
+          { usuario: { $exists: false } }
+        ]
+      })
+    ]);
+
+    res.status(200).json({ total: totalInteresses + totalComentarios });
+  } catch (error) {
+    console.error('Erro ao contar notificações do admin:', error);
+    res.status(500).json({ erro: 'Não foi possível carregar o contador de notificações.' });
+  }
+});
+
+app.get('/admin/notificacoes', autenticar, autorizarAdmin, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const publicacoes = await Post.find({ autor: req.usuario!.id }).select('_id');
+    const publicacoesIds = publicacoes.map((publicacao) => publicacao._id);
+
+    const [interesses, comentarios] = await Promise.all([
+      PostInterest.find({ publicacao: { $in: publicacoesIds } })
+        .populate('usuario', 'nome email')
+        .populate('publicacao', 'titulo')
+        .sort({ createdAt: -1 })
+        .limit(50),
+      Comment.find({
+        publicacao: { $in: publicacoesIds },
+        $or: [
+          { usuario: { $ne: req.usuario!.id } },
+          { usuario: { $exists: false } }
+        ]
+      })
+        .populate('usuario', 'nome email')
+        .populate('publicacao', 'titulo')
+        .sort({ createdAt: -1 })
+        .limit(50)
+    ]);
+
+    const notificacoes = [
+      ...interesses.map((interesse: any) => ({
+        _id: String(interesse._id),
+        tipo: 'interesse',
+        lida: !!interesse.visualizadoPeloAdmin,
+        createdAt: interesse.createdAt,
+        usuario: interesse.usuario,
+        publicacao: interesse.publicacao
+      })),
+      ...comentarios.map((comentario: any) => ({
+        _id: String(comentario._id),
+        tipo: 'comentario',
+        lida: !!comentario.visualizadoPeloAdmin,
+        createdAt: comentario.createdAt,
+        texto: comentario.texto,
+        nomeVisitante: comentario.nomeVisitante,
+        usuario: comentario.usuario,
+        publicacao: comentario.publicacao
+      }))
+    ]
+      .filter((notificacao) => notificacao.publicacao)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 50);
+
+    res.status(200).json(notificacoes);
+  } catch (error) {
+    console.error('Erro ao buscar notificações do admin:', error);
+    res.status(500).json({ erro: 'Não foi possível carregar as notificações.' });
+  }
+});
+
+app.patch('/admin/notificacoes/lidas', autenticar, autorizarAdmin, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const publicacoes = await Post.find({ autor: req.usuario!.id }).select('_id');
+    const publicacoesIds = publicacoes.map((publicacao) => publicacao._id);
+
+    await Promise.all([
+      PostInterest.updateMany(
+        {
+          publicacao: { $in: publicacoesIds },
+          visualizadoPeloAdmin: { $ne: true }
+        },
+        { visualizadoPeloAdmin: true }
+      ),
+      Comment.updateMany(
+        {
+          publicacao: { $in: publicacoesIds },
+          visualizadoPeloAdmin: { $ne: true },
+          $or: [
+            { usuario: { $ne: req.usuario!.id } },
+            { usuario: { $exists: false } }
+          ]
+        },
+        { visualizadoPeloAdmin: true }
+      )
+    ]);
+
+    res.status(200).json({ mensagem: 'Notificações marcadas como vistas.' });
+  } catch (error) {
+    console.error('Erro ao marcar notificações do admin como lidas:', error);
+    res.status(500).json({ erro: 'Não foi possível marcar as notificações como vistas.' });
+  }
+});
+
+app.get('/admin/publicacoes/:id/interessados', autenticar, autorizarAdmin, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const publicacao = await Post.findOne({
+      _id: req.params.id,
+      autor: req.usuario!.id
+    }).select('titulo mensagemInteressados');
+
+    if (!publicacao) {
+      return res.status(404).json({ erro: 'Publicação não encontrada ou sem permissão.' });
+    }
+
+    const interessados = await PostInterest.find({ publicacao: publicacao._id })
+      .populate('usuario', 'nome email')
+      .sort({ createdAt: -1 });
+
+    await PostInterest.updateMany(
+      {
+        publicacao: publicacao._id,
+        visualizadoPeloAdmin: false
+      },
+      { visualizadoPeloAdmin: true }
+    );
+
+    res.status(200).json({
+      mensagemInteressados: publicacao.mensagemInteressados || '',
+      interessados: interessados
+        .filter((interesse) => interesse.usuario)
+        .map((interesse) => ({
+          _id: interesse._id,
+          createdAt: interesse.createdAt,
+          usuario: interesse.usuario
+        }))
+    });
+  } catch (error) {
+    console.error('Erro ao buscar interessados:', error);
+    res.status(500).json({ erro: 'Não foi possível carregar os interessados.' });
+  }
+});
+
+app.put('/admin/publicacoes/:id/interessados/mensagem', autenticar, autorizarAdmin, async (req: RequisicaoAutenticada, res) => {
+  try {
+    const mensagem = String(req.body.mensagem || '').trim();
+
+    if (!mensagem) {
+      return res.status(400).json({ erro: 'Digite uma mensagem para os interessados.' });
+    }
+
+    if (mensagem.length > 1000) {
+      return res.status(400).json({ erro: 'A mensagem deve ter no máximo 1000 caracteres.' });
+    }
+
+    const publicacao = await Post.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        autor: req.usuario!.id
+      },
+      { mensagemInteressados: mensagem },
+      { new: true }
+    ).select('mensagemInteressados');
+
+    if (!publicacao) {
+      return res.status(404).json({ erro: 'Publicação não encontrada ou sem permissão.' });
+    }
+
+    const notificacoesEnviadas = await notificarInteressadosDaPublicacao(publicacao._id, mensagem);
+
+    res.status(200).json({
+      mensagemInteressados: publicacao.mensagemInteressados,
+      notificacoesEnviadas
+    });
+  } catch (error) {
+    console.error('Erro ao salvar mensagem dos interessados:', error);
+    res.status(500).json({ erro: 'Não foi possível enviar a mensagem aos interessados.' });
+  }
+});
+
 app.get('/notificacoes', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
-    const notificacoes = await PostNotification.find({ usuario: req.usuario!.id })
-      .populate({
-        path: 'publicacao',
-        match: { encerrada: { $ne: true } },
-        populate: { path: 'autor', select: 'nome cargo' }
-      })
-      .sort({ createdAt: -1 })
-      .limit(50);
+    const [notificacoesPublicacao, notificacoesInteresse] = await Promise.all([
+      PostNotification.find({ usuario: req.usuario!.id })
+        .populate({
+          path: 'publicacao',
+          match: { encerrada: { $ne: true } },
+          populate: { path: 'autor', select: 'nome cargo' }
+        })
+        .sort({ createdAt: -1 })
+        .limit(50),
+      InterestMessageNotification.find({ usuario: req.usuario!.id })
+        .populate({
+          path: 'publicacao',
+          match: { encerrada: { $ne: true } },
+          populate: { path: 'autor', select: 'nome cargo' }
+        })
+        .sort({ createdAt: -1 })
+        .limit(50)
+    ]);
 
-    res.status(200).json(notificacoes.filter((notificacao) => notificacao.publicacao));
+    const notificacoes = [
+      ...notificacoesPublicacao
+        .filter((notificacao) => notificacao.publicacao)
+        .map((notificacao) => ({
+          ...notificacao.toObject(),
+          tipo: 'publicacao'
+        })),
+      ...notificacoesInteresse
+        .filter((notificacao) => notificacao.publicacao)
+        .map((notificacao) => ({
+          ...notificacao.toObject(),
+          tipo: 'mensagem_interesse'
+        }))
+    ].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()).slice(0, 50);
+
+    res.status(200).json(notificacoes);
   } catch (error) {
     console.error('Erro ao buscar notificações:', error);
     res.status(500).json({ erro: 'Não foi possível carregar as notificações.' });
@@ -543,12 +883,18 @@ app.get('/notificacoes', autenticar, async (req: RequisicaoAutenticada, res) => 
 
 app.get('/notificacoes/nao-lidas', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
-    const total = await PostNotification.countDocuments({
-      usuario: req.usuario!.id,
-      lida: false
-    });
+    const [totalPublicacoes, totalInteresses] = await Promise.all([
+      PostNotification.countDocuments({
+        usuario: req.usuario!.id,
+        lida: false
+      }),
+      InterestMessageNotification.countDocuments({
+        usuario: req.usuario!.id,
+        lida: false
+      })
+    ]);
 
-    res.status(200).json({ total });
+    res.status(200).json({ total: totalPublicacoes + totalInteresses });
   } catch (error) {
     console.error('Erro ao contar notificações:', error);
     res.status(500).json({ erro: 'Não foi possível carregar o contador de notificações.' });
@@ -557,10 +903,16 @@ app.get('/notificacoes/nao-lidas', autenticar, async (req: RequisicaoAutenticada
 
 app.patch('/notificacoes/lidas', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
-    await PostNotification.updateMany(
-      { usuario: req.usuario!.id, lida: false },
-      { lida: true }
-    );
+    await Promise.all([
+      PostNotification.updateMany(
+        { usuario: req.usuario!.id, lida: false },
+        { lida: true }
+      ),
+      InterestMessageNotification.updateMany(
+        { usuario: req.usuario!.id, lida: false },
+        { lida: true }
+      )
+    ]);
 
     res.status(200).json({ mensagem: 'Notificações marcadas como lidas.' });
   } catch (error) {
@@ -571,14 +923,20 @@ app.patch('/notificacoes/lidas', autenticar, async (req: RequisicaoAutenticada, 
 
 app.delete('/notificacoes/lidas', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
-    const resultado = await PostNotification.deleteMany({
-      usuario: req.usuario!.id,
-      lida: true
-    });
+    const [resultadoPublicacoes, resultadoInteresses] = await Promise.all([
+      PostNotification.deleteMany({
+        usuario: req.usuario!.id,
+        lida: true
+      }),
+      InterestMessageNotification.deleteMany({
+        usuario: req.usuario!.id,
+        lida: true
+      })
+    ]);
 
     res.status(200).json({
       mensagem: 'Notificações visualizadas removidas.',
-      removidas: resultado.deletedCount
+      removidas: (resultadoPublicacoes.deletedCount || 0) + (resultadoInteresses.deletedCount || 0)
     });
   } catch (error) {
     console.error('Erro ao limpar notificações visualizadas:', error);
@@ -589,6 +947,10 @@ app.delete('/notificacoes/lidas', autenticar, async (req: RequisicaoAutenticada,
 app.patch('/notificacoes/:id/lida', autenticar, async (req: RequisicaoAutenticada, res) => {
   try {
     const notificacao = await PostNotification.findOneAndUpdate(
+      { _id: req.params.id, usuario: req.usuario!.id },
+      { lida: true },
+      { new: true }
+    ) || await InterestMessageNotification.findOneAndUpdate(
       { _id: req.params.id, usuario: req.usuario!.id },
       { lida: true },
       { new: true }

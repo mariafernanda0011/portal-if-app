@@ -9,6 +9,7 @@ const PostSchema = new mongoose.Schema({
   arquivoPdf: { type: String },
   pdfs: [{ type: String }],
   autor: { type: Schema.Types.ObjectId, ref: 'User' },
+  mensagemInteressados: { type: String, default: '' },
   encerrada: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });

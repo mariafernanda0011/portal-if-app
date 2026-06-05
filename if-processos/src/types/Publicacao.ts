@@ -7,6 +7,7 @@ export type Publicacao = {
   urlPublicacao?: string;
   arquivoPdf?: string;
   pdfs?: string[];
+  mensagemInteressados?: string;
   autor?: {
     _id?: string;
     nome?: string;

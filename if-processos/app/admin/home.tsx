@@ -50,6 +50,23 @@ type Publicacao = {
   createdAt: string;
 };
 
+type AdminNotificacao = {
+  _id: string;
+  tipo: 'comentario' | 'interesse';
+  lida: boolean;
+  createdAt: string;
+  texto?: string;
+  nomeVisitante?: string;
+  usuario?: {
+    nome?: string;
+    email?: string;
+  };
+  publicacao?: {
+    _id: string;
+    titulo: string;
+  };
+};
+
 const CARGOS: { valor: Cargo; rotulo: string }[] = [
   { valor: 'professor', rotulo: 'Professor' },
   { valor: 'coordenador', rotulo: 'Coordenador de curso' },
@@ -85,6 +102,10 @@ export default function HomeAdmin() {
   const [senhaModalVisivel, setSenhaModalVisivel] = useState(false);
   const [salvandoSenha, setSalvandoSenha] = useState(false);
   const [mensagensNaoLidas, setMensagensNaoLidas] = useState(0);
+  const [notificacoesNaoLidas, setNotificacoesNaoLidas] = useState(0);
+  const [modalNotificacoesVisivel, setModalNotificacoesVisivel] = useState(false);
+  const [notificacoesAdmin, setNotificacoesAdmin] = useState<AdminNotificacao[]>([]);
+  const [carregandoNotificacoes, setCarregandoNotificacoes] = useState(false);
 
   const carregarPainel = useCallback(async () => {
     try {
@@ -119,12 +140,16 @@ export default function HomeAdmin() {
     useCallback(() => {
       const carregarNaoLidas = async () => {
         try {
-          const resposta = await axios.get(`${API_URL}/chats/nao-lidas`, {
-            headers: criarCabecalhoAuth(),
-          });
-          setMensagensNaoLidas(resposta.data.total);
+          const headers = criarCabecalhoAuth();
+          const [respostaChats, respostaInteresses] = await Promise.all([
+            axios.get(`${API_URL}/chats/nao-lidas`, { headers }),
+            axios.get(`${API_URL}/admin/notificacoes/nao-lidas`, { headers }),
+          ]);
+          setMensagensNaoLidas(respostaChats.data.total);
+          setNotificacoesNaoLidas(respostaInteresses.data.total);
         } catch {
           setMensagensNaoLidas(0);
+          setNotificacoesNaoLidas(0);
         }
       };
 
@@ -430,6 +455,29 @@ export default function HomeAdmin() {
     router.replace('/login');
   };
 
+  const abrirNotificacoesAdmin = async () => {
+    try {
+      setModalNotificacoesVisivel(true);
+      setCarregandoNotificacoes(true);
+      const headers = criarCabecalhoAuth();
+      const resposta = await axios.get(`${API_URL}/admin/notificacoes`, { headers });
+      setNotificacoesAdmin(resposta.data);
+      await axios.patch(`${API_URL}/admin/notificacoes/lidas`, {}, { headers });
+      setNotificacoesNaoLidas(0);
+    } catch (error: any) {
+      Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível carregar as notificações.');
+    } finally {
+      setCarregandoNotificacoes(false);
+    }
+  };
+
+  const abrirPublicacaoDaNotificacao = (notificacao: AdminNotificacao) => {
+    if (!notificacao.publicacao?._id) return;
+
+    setModalNotificacoesVisivel(false);
+    router.push(`/publicacao/${notificacao.publicacao._id}` as never);
+  };
+
   if (carregando) {
     return (
       <View style={styles.loading}>
@@ -443,6 +491,17 @@ export default function HomeAdmin() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerButton}
+              onPress={abrirNotificacoesAdmin}
+            >
+              <Ionicons name={notificacoesNaoLidas > 0 ? 'notifications' : 'notifications-outline'} size={20} color={COLORS.white} />
+              {notificacoesNaoLidas > 0 && (
+                <View style={styles.headerBadge}>
+                  <Text style={styles.headerBadgeText}>{notificacoesNaoLidas > 99 ? '99+' : notificacoesNaoLidas}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity style={styles.headerButton} onPress={() => router.push('/admin/chats' as never)}>
               <Ionicons name="chatbubbles-outline" size={20} color={COLORS.white} />
               {mensagensNaoLidas > 0 && (
@@ -515,7 +574,12 @@ export default function HomeAdmin() {
             </View>
           ) : (
             publicacoesFiltradas.map((publicacao) => (
-              <View key={publicacao._id} style={styles.postCard}>
+              <TouchableOpacity
+                key={publicacao._id}
+                style={styles.postCard}
+                activeOpacity={0.88}
+                onPress={() => router.push(`/publicacao/${publicacao._id}` as never)}
+              >
                 <View style={styles.postHeader}>
                   <View style={styles.postContent}>
                     <Text style={styles.postTitle}>{publicacao.titulo}</Text>
@@ -564,7 +628,7 @@ export default function HomeAdmin() {
                     </TouchableOpacity>
                   )}
                 </View>
-              </View>
+              </TouchableOpacity>
             ))
           )}
         </View>
@@ -576,6 +640,60 @@ export default function HomeAdmin() {
         <NavItem icon="eye-outline" label="Visualizar" onPress={() => router.push('/home')} />
         <NavItem icon="person-outline" label="Perfil" onPress={abrirEdicaoPerfil} />
       </View>
+
+      <Modal visible={modalNotificacoesVisivel} animationType="slide" transparent onRequestClose={() => setModalNotificacoesVisivel(false)}>
+        <View style={styles.notificationOverlay}>
+          <View style={styles.notificationPanel}>
+            <View style={styles.notificationHeader}>
+              <View>
+                <Text style={styles.notificationModalTitle}>Notificações</Text>
+                <Text style={styles.notificationModalSubtitle}>Comentários e interessados nas suas publicações</Text>
+              </View>
+              <TouchableOpacity style={styles.iconButton} onPress={() => setModalNotificacoesVisivel(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textDark} />
+              </TouchableOpacity>
+            </View>
+
+            {carregandoNotificacoes ? (
+              <View style={styles.notificationLoading}>
+                <ActivityIndicator size="large" color={COLORS.primary} />
+              </View>
+            ) : (
+              <ScrollView contentContainerStyle={notificacoesAdmin.length === 0 ? styles.notificationEmptyList : styles.notificationList}>
+                {notificacoesAdmin.length === 0 ? (
+                  <View style={styles.notificationEmpty}>
+                    <Ionicons name="notifications-off-outline" size={42} color={COLORS.placeholder} />
+                    <Text style={styles.notificationEmptyTitle}>Nada novo por aqui</Text>
+                    <Text style={styles.notificationEmptyText}>Quando um aluno comentar ou marcar interesse, aparecerá neste sino.</Text>
+                  </View>
+                ) : (
+                  notificacoesAdmin.map((notificacao) => (
+                    <TouchableOpacity
+                      key={`${notificacao.tipo}-${notificacao._id}`}
+                      style={[styles.adminNotificationItem, !notificacao.lida && styles.adminNotificationUnread]}
+                      onPress={() => abrirPublicacaoDaNotificacao(notificacao)}
+                    >
+                      <View style={styles.adminNotificationIcon}>
+                        <Ionicons
+                          name={notificacao.tipo === 'comentario' ? 'chatbubble-ellipses-outline' : 'hand-left-outline'}
+                          size={19}
+                          color={COLORS.primary}
+                        />
+                      </View>
+                      <View style={styles.adminNotificationContent}>
+                        <Text style={styles.adminNotificationTitle}>{tituloNotificacaoAdmin(notificacao)}</Text>
+                        <Text style={styles.adminNotificationText} numberOfLines={2}>{textoNotificacaoAdmin(notificacao)}</Text>
+                        <Text style={styles.adminNotificationDate}>{formatarData(notificacao.createdAt)}</Text>
+                      </View>
+                      {!notificacao.lida && <View style={styles.adminUnreadDot} />}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </ScrollView>
+            )}
+          </View>
+        </View>
+      </Modal>
 
       <Modal visible={modalPerfilVisivel} animationType="slide" onRequestClose={() => setModalPerfilVisivel(false)}>
         <ScrollView style={styles.modal} contentContainerStyle={styles.modalContent}>
@@ -757,6 +875,30 @@ function formatarData(data: string) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
+function nomeAutorNotificacao(notificacao: AdminNotificacao) {
+  return notificacao.usuario?.nome || notificacao.usuario?.email || notificacao.nomeVisitante || 'Visitante';
+}
+
+function tituloNotificacaoAdmin(notificacao: AdminNotificacao) {
+  const nome = nomeAutorNotificacao(notificacao);
+
+  return notificacao.tipo === 'comentario'
+    ? `${nome} comentou`
+    : `${nome} marcou interesse`;
+}
+
+function textoNotificacaoAdmin(notificacao: AdminNotificacao) {
+  const titulo = notificacao.publicacao?.titulo || 'Publicação';
+
+  if (notificacao.tipo === 'comentario') {
+    return notificacao.texto
+      ? `"${notificacao.texto}" em ${titulo}`
+      : `Novo comentário em ${titulo}`;
+  }
+
+  return `Interesse registrado em ${titulo}`;
+}
+
 function nomeArquivo(caminho: string) {
   return caminho.split(/[/\\]/).pop() || 'arquivo.pdf';
 }
@@ -825,6 +967,25 @@ const styles = StyleSheet.create({
   passwordModal: { padding: 20, paddingTop: 16, borderTopLeftRadius: 8, borderTopRightRadius: 8, backgroundColor: COLORS.white },
   passwordModalHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 },
   passwordModalTitle: { color: COLORS.primary, fontSize: 21, fontWeight: 'bold' },
+  notificationOverlay: { flex: 1, justifyContent: 'flex-end', backgroundColor: 'rgba(0, 0, 0, 0.35)' },
+  notificationPanel: { maxHeight: '82%', borderTopLeftRadius: 8, borderTopRightRadius: 8, backgroundColor: COLORS.white },
+  notificationHeader: { paddingHorizontal: 18, paddingVertical: 14, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', borderBottomWidth: 1, borderBottomColor: COLORS.lightGray },
+  notificationModalTitle: { color: COLORS.primary, fontSize: 21, fontWeight: 'bold' },
+  notificationModalSubtitle: { marginTop: 3, color: COLORS.gray, fontSize: 12 },
+  notificationLoading: { minHeight: 180, alignItems: 'center', justifyContent: 'center' },
+  notificationList: { padding: 14, paddingBottom: 24 },
+  notificationEmptyList: { flexGrow: 1, justifyContent: 'center', padding: 30 },
+  notificationEmpty: { alignItems: 'center' },
+  notificationEmptyTitle: { marginTop: 10, color: COLORS.textDark, fontSize: 16, fontWeight: 'bold' },
+  notificationEmptyText: { marginTop: 5, color: COLORS.gray, fontSize: 13, lineHeight: 18, textAlign: 'center' },
+  adminNotificationItem: { minHeight: 76, marginBottom: 9, padding: 11, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: 8, backgroundColor: COLORS.white },
+  adminNotificationUnread: { borderColor: '#c8e6c9', backgroundColor: '#f4fbf5' },
+  adminNotificationIcon: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center', backgroundColor: '#e8f5e9' },
+  adminNotificationContent: { flex: 1, marginLeft: 10 },
+  adminNotificationTitle: { color: COLORS.textDark, fontSize: 14, fontWeight: 'bold' },
+  adminNotificationText: { marginTop: 3, color: COLORS.gray, fontSize: 12, lineHeight: 17 },
+  adminNotificationDate: { marginTop: 4, color: COLORS.placeholder, fontSize: 11 },
+  adminUnreadDot: { width: 9, height: 9, marginLeft: 7, borderRadius: 5, backgroundColor: COLORS.secondary },
   passwordInput: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: 8, backgroundColor: COLORS.white },
   passwordTextInput: { flex: 1, height: 48, paddingHorizontal: 12, color: COLORS.textDark },
   eyeButton: { width: 42, height: 48, alignItems: 'center', justifyContent: 'center' },

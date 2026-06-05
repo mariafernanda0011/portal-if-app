@@ -15,6 +15,8 @@ type NotificacaoPublicacao = {
   _id: string;
   lida: boolean;
   createdAt: string;
+  tipo?: 'publicacao' | 'mensagem_interesse';
+  mensagem?: string;
   publicacao: Publicacao;
 };
 
@@ -218,7 +220,7 @@ export default function HomeUsuario() {
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>Notificações</Text>
-                <Text style={styles.modalSubtitle}>Novas publicações do portal</Text>
+                <Text style={styles.modalSubtitle}>Publicações e avisos de interesse</Text>
               </View>
               <TouchableOpacity style={styles.modalCloseButton} onPress={() => setModalNotificacoes(false)}>
                 <Ionicons name="close" size={22} color={COLORS.textDark} />
@@ -245,11 +247,19 @@ export default function HomeUsuario() {
               renderItem={({ item }) => (
                 <TouchableOpacity style={[styles.notificationItem, !item.lida && styles.notificationUnread]} onPress={() => abrirNotificacao(item)}>
                   <View style={styles.notificationIcon}>
-                    <Ionicons name="document-text-outline" size={19} color={COLORS.primary} />
+                    <Ionicons
+                      name={item.tipo === 'mensagem_interesse' ? 'information-circle-outline' : 'document-text-outline'}
+                      size={19}
+                      color={COLORS.primary}
+                    />
                   </View>
                   <View style={styles.notificationContent}>
-                    <Text style={styles.notificationTitle} numberOfLines={2}>{item.publicacao.titulo}</Text>
-                    {!!item.publicacao.subtitulo && (
+                    <Text style={styles.notificationTitle} numberOfLines={2}>
+                      {item.tipo === 'mensagem_interesse' ? `Informações: ${item.publicacao.titulo}` : item.publicacao.titulo}
+                    </Text>
+                    {item.tipo === 'mensagem_interesse' && !!item.mensagem ? (
+                      <Text style={styles.notificationDescription} numberOfLines={3}>{item.mensagem}</Text>
+                    ) : !!item.publicacao.subtitulo && (
                       <Text style={styles.notificationDescription} numberOfLines={2}>{item.publicacao.subtitulo}</Text>
                     )}
                     <Text style={styles.notificationDate}>{formatarData(item.createdAt)}</Text>
@@ -261,7 +271,7 @@ export default function HomeUsuario() {
                 <View style={styles.notificationEmpty}>
                   <Ionicons name="notifications-off-outline" size={42} color={COLORS.placeholder} />
                   <Text style={styles.notificationEmptyTitle}>Nada novo por aqui</Text>
-                  <Text style={styles.notificationEmptyText}>Quando uma publicação for criada, ela aparecerá neste sino.</Text>
+                  <Text style={styles.notificationEmptyText}>Quando uma publicação ou aviso para interessados aparecer, ele ficará neste sino.</Text>
                 </View>
               }
             />
