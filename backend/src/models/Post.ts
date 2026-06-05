@@ -6,7 +6,10 @@ const PostSchema = new mongoose.Schema({
   descricao: { type: String, required: true },
   imagem: { type: String }, 
   urlPublicacao: { type: String },
-  arquivoPdf: { type: String },   
+  arquivoPdf: { type: String },
+  pdfs: [{ type: String }],
+  autor: { type: Schema.Types.ObjectId, ref: 'User' },
+  encerrada: { type: Boolean, default: false },
   createdAt: { type: Date, default: Date.now }
 });
 

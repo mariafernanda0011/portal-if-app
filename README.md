@@ -65,8 +65,22 @@ PORT=3000
 MONGODB_LOCAL_URL=mongodb://127.0.0.1:27017/portal-ifnmg
 MONGODB_ATLAS_URL=sua_url_do_atlas_aqui
 CHAVE_SECRETA=sua_chave_secreta_aqui
+GOOGLE_CLIENT_ID=seu_google_client_id_aqui
+SMTP_HOST=smtp.seu_provedor.com
+SMTP_PORT=587
+SMTP_USER=seu_email_de_envio
+SMTP_PASS=sua_senha_ou_app_password
+SMTP_FROM="Portal IFNMG <seu_email_de_envio>"
 \`\`\`
 *(O servidor tentará conectar primeiro na nuvem. Se falhar, usará o banco local).*
+
+As variáveis `SMTP_*` são usadas para enviar o código de recuperação de senha. Em desenvolvimento, se elas não estiverem configuradas, o backend mostra o código no terminal para facilitar testes locais.
+
+Se o app usar mais de um Client ID do Google, por exemplo Web e Android, você também pode informar todos no backend separados por vírgula:
+
+```env
+GOOGLE_CLIENT_IDS=client_web.apps.googleusercontent.com,client_android.apps.googleusercontent.com
+```
 
 **2. Instalando dependências e rodando o servidor**
 Abra um terminal exclusivo para a pasta do backend e rode os comandos:
@@ -79,16 +93,61 @@ npm install
 npm run dev
 \`\`\`
 
-**3. Conexão para o Celular Físico (Localtunnel / Ngrok)**
-Se você for testar o aplicativo usando o Expo Go no celular, o aplicativo não conseguirá ler o `localhost`. Você precisará expor o backend para a internet. 
+### Configurando a URL da API no app
 
-Com o servidor rodando (`npm run dev`), abra uma **nova aba** no terminal do backend e rode:
-\`\`\`bash
+O frontend lê a URL do backend pela variável `EXPO_PUBLIC_API_URL`. Assim você não precisa alterar o arquivo `src/config/api.ts` toda vez que mudar de IP ou trocar o link do tunnel.
+
+Dentro da pasta `if-processos`, crie um arquivo chamado `.env`:
+
+```env
+EXPO_PUBLIC_API_URL=http://localhost:3000
+EXPO_PUBLIC_GOOGLE_CLIENT_ID=seu_google_client_id_padrao
+EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID=seu_google_client_id_web
+EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID=seu_google_client_id_android
+EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID=seu_google_client_id_ios
+EXPO_PUBLIC_EXPO_OWNER=seu_usuario_ou_org_da_expo
+```
+
+No Google Cloud Console, adicione a URL de redirecionamento do Expo Go no Web Client ID:
+
+```txt
+https://auth.expo.io/@seu_usuario_ou_org_da_expo/if-processos
+```
+
+O proxy `auth.expo.io` é usado apenas no Expo Go. Em APK, AAB ou development build, use o Client ID nativo da plataforma.
+
+Use a URL conforme o ambiente:
+
+- **Web no mesmo computador:** `http://localhost:3000`
+- **Celular na mesma rede Wi-Fi:** `http://IP_DO_SEU_PC:3000`, por exemplo `http://192.168.0.10:3000`
+- **Celular fora da rede ou usando tunnel:** use a URL gerada pelo serviço, por exemplo `https://seu-link.loca.lt`
+
+Depois de mudar o `.env`, reinicie o Expo para ele carregar a nova variável:
+
+```bash
+npx expo start --clear
+```
+
+**Conexão para o Celular Físico (Localtunnel / Ngrok / Cloudflared)**
+Se você for testar o aplicativo usando o Expo Go no celular e não quiser usar o IP local do computador, exponha o backend para a internet com um serviço de tunnel.
+
+Com o servidor rodando (`npm run dev`), abra uma **nova aba** no terminal do backend e rode uma das opções:
+
+```bash
 npx localtunnel --port 3000
-\`\`\`
-1. O terminal vai gerar um link (ex: `https://seu-link-aleatorio.loca.lt`).
-2. **Importante:** Abra esse link no seu navegador do PC copie o ip no inicio da pagina,cole no campo no meio da pagina e clique no botão azul *"Continue"* para desbloquear o acesso.
-3. Copie esse link e cole na variável `API_URL` dentro do arquivo `src/config/api.ts` no frontend.
+```
+
+ou:
+
+```bash
+cloudflared tunnel --url http://localhost:3000
+```
+
+Copie a URL gerada e coloque no arquivo `if-processos/.env`:
+
+```env
+EXPO_PUBLIC_API_URL=https://seu-link-gerado
+```
 
 ### 5. Rodar no celular
 

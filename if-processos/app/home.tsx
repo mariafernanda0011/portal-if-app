@@ -16,6 +16,9 @@ interface Post {
     subtitulo?: string;
     descricao: string;
     imagem?: string;
+    urlPublicacao?: string;
+    arquivoPdf?: string;
+    pdfs?: string[];
     createdAt: string;
 }
 export default function Home() {

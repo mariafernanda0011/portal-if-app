@@ -3,8 +3,9 @@
     "name": "if-processos",
     "slug": "if-processos",
     "version": "1.0.0",
+    "owner": "renatoxd2",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/ifnmg_logo.png",
     "scheme": "ifprocessos",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,26 +15,27 @@
     "android": {
       "package": "com.seu.projeto",
       "usesCleartextTraffic": true,
+      "softwareKeyboardLayoutMode": "resize",
 
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/android-icon-foreground.png",
-        "backgroundImage": "./assets/images/android-icon-background.png",
-        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+        "foregroundImage": "./assets/images/ifnmg_logo.png",
+        "backgroundImage": "./assets/images/background.png",
+        "monochromeImage": "./assets/images/ifnmg_logo.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/ifnmg_logo.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/ifnmg_logo.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",

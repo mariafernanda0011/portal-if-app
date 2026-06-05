@@ -1,260 +1,509 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, TextInput, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity } from 'react-native';
-import axios from 'axios';
+import React, { useCallback, useState } from 'react';
+import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import axios from 'axios';
 import Card from '@/src/components/Card';
-import BotaoVoltar from '@/src/components/BotaoVoltar';
+import UserBottomNav from '@/src/components/UserBottomNav';
+import { API_URL } from '@/src/config/api';
+import { criarCabecalhoAuth } from '@/src/config/auth';
 import { COLORS } from '@/src/styles/theme';
 import { globalStyles } from '@/src/styles/globalStyles';
-import { API_URL } from '@/src/config/api';
+import { Publicacao } from '@/src/types/Publicacao';
 
-interface Post {
+type NotificacaoPublicacao = {
   _id: string;
-  titulo: string;
-  subtitulo?: string;
-  descricao: string;
-  imagem?: string;
+  lida: boolean;
   createdAt: string;
-}
+  publicacao: Publicacao;
+};
 
 export default function HomeUsuario() {
   const router = useRouter();
-
-  const [data, setData] = useState<Post[]>([]);
-  const [carregando, setCarregando] = useState(true);
+  const [publicacoes, setPublicacoes] = useState<Publicacao[]>([]);
+  const [notificacoes, setNotificacoes] = useState<NotificacaoPublicacao[]>([]);
   const [busca, setBusca] = useState('');
-  const [tab, setTab] = useState<'home' | 'fav' | 'perfil'>('home');
+  const [carregando, setCarregando] = useState(true);
+  const [modalNotificacoes, setModalNotificacoes] = useState(false);
 
-  useEffect(() => {
-    carregarPublicacoes();
-  }, []);
-
-  async function carregarPublicacoes() {
+  const carregarPublicacoes = useCallback(async () => {
     try {
-      const res = await axios.get(`${API_URL}/publicacoes`);
-
-      const ordenado = res.data.sort(
-        (a: Post, b: Post) =>
-          new Date(b.createdAt).getTime() -
-          new Date(a.createdAt).getTime()
-      );
-
-      setData(ordenado);
+      const resposta = await axios.get(`${API_URL}/publicacoes`);
+      setPublicacoes(resposta.data);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível carregar as publicações.');
     } finally {
       setCarregando(false);
     }
+  }, []);
+
+  const carregarNotificacoes = useCallback(async (silencioso = false) => {
+    try {
+      const resposta = await axios.get(`${API_URL}/notificacoes`, {
+        headers: criarCabecalhoAuth(),
+      });
+      setNotificacoes(resposta.data);
+    } catch {
+      if (!silencioso) {
+        Alert.alert('Erro', 'Não foi possível carregar as notificações.');
+      }
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      carregarPublicacoes();
+      carregarNotificacoes(true);
+      const intervalo = setInterval(() => carregarNotificacoes(true), 8000);
+      return () => clearInterval(intervalo);
+    }, [carregarNotificacoes, carregarPublicacoes])
+  );
+
+  const totalNaoLidas = notificacoes.filter((notificacao) => !notificacao.lida).length;
+
+  const publicacoesFiltradas = publicacoes.filter((publicacao) => {
+    const termo = busca.trim().toLowerCase();
+
+    return !termo
+      || publicacao.titulo.toLowerCase().includes(termo)
+      || publicacao.subtitulo?.toLowerCase().includes(termo)
+      || publicacao.descricao.toLowerCase().includes(termo);
+  });
+
+  const abrirModalNotificacoes = async () => {
+    setModalNotificacoes(true);
+
+    if (totalNaoLidas === 0) return;
+
+    setNotificacoes((atuais) => atuais.map((item) => ({ ...item, lida: true })));
+
+    try {
+      await axios.patch(`${API_URL}/notificacoes/lidas`, {}, {
+        headers: criarCabecalhoAuth(),
+      });
+    } catch {
+      carregarNotificacoes(true);
+    }
   };
 
-  const filtradas = data.filter(item =>
-    item.titulo.toLowerCase().includes(busca.toLowerCase()) ||
-    item.descricao.toLowerCase().includes(busca.toLowerCase())
-  );
+  const abrirNotificacao = async (notificacao: NotificacaoPublicacao) => {
+    try {
+      if (!notificacao.lida) {
+        await axios.patch(
+          `${API_URL}/notificacoes/${notificacao._id}/lida`,
+          {},
+          { headers: criarCabecalhoAuth() }
+        );
+        setNotificacoes((atuais) =>
+          atuais.map((item) => item._id === notificacao._id ? { ...item, lida: true } : item)
+        );
+      }
+
+      setModalNotificacoes(false);
+      router.push(`/publicacao/${notificacao.publicacao._id}` as never);
+    } catch {
+      Alert.alert('Erro', 'Não foi possível abrir a notificação.');
+    }
+  };
+
+  const marcarTodasComoLidas = async () => {
+    try {
+      await axios.patch(`${API_URL}/notificacoes/lidas`, {}, {
+        headers: criarCabecalhoAuth(),
+      });
+      setNotificacoes((atuais) => atuais.map((item) => ({ ...item, lida: true })));
+    } catch {
+      Alert.alert('Erro', 'Não foi possível marcar as notificações como lidas.');
+    }
+  };
+
+  const limparVisualizadas = () => {
+    const totalVisualizadas = notificacoes.filter((notificacao) => notificacao.lida).length;
+
+    if (totalVisualizadas === 0) {
+      Alert.alert('Notificações', 'Não há notificações visualizadas para limpar.');
+      return;
+    }
+
+    Alert.alert(
+      'Limpar notificações',
+      `Deseja apagar ${totalVisualizadas} ${totalVisualizadas === 1 ? 'notificação visualizada' : 'notificações visualizadas'}? As não lidas serão mantidas.`,
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Limpar',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await axios.delete(`${API_URL}/notificacoes/lidas`, {
+                headers: criarCabecalhoAuth(),
+              });
+              setNotificacoes((atuais) => atuais.filter((item) => !item.lida));
+            } catch {
+              Alert.alert('Erro', 'Não foi possível limpar as notificações visualizadas.');
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={globalStyles.container}>
-
-      <View style={[globalStyles.header, { alignItems: 'center' }]}>
-
+      <View style={[globalStyles.header, styles.header]}>
         <View style={styles.headerTop}>
-
-          <View style={styles.titleContainer}>
-            <Text style={styles.portalTitle}>Portal IFNMG</Text>
-          </View>
-
-          <TouchableOpacity onPress={() => console.log('notificações')}>
-            <Ionicons name="notifications-outline" size={22} color={COLORS.white} />
+          <Text style={styles.portalTitle}>Portal IFNMG</Text>
+          <TouchableOpacity style={styles.notificationButton} onPress={abrirModalNotificacoes}>
+            <Ionicons name={totalNaoLidas > 0 ? 'notifications' : 'notifications-outline'} size={23} color={COLORS.white} />
+            {totalNaoLidas > 0 && (
+              <View style={styles.notificationBadge}>
+                <Text style={styles.notificationBadgeText}>{totalNaoLidas > 99 ? '99+' : totalNaoLidas}</Text>
+              </View>
+            )}
           </TouchableOpacity>
-
         </View>
-          <View style={styles.searchBar}>
-          
-              <Ionicons name="search" size={20} color={COLORS.textLight} />
-              <TextInput
-                  placeholder="Buscar no portal..."
-                  style={styles.searchInput}
-                  placeholderTextColor={COLORS.placeholder}
-                  />
-              
-            <TouchableOpacity onPress={() => console.log('filtros')}>
-              <Ionicons name="options-outline" size={20} color={COLORS.textLight} />
+        <View style={styles.searchBar}>
+          <Ionicons name="search-outline" size={20} color={COLORS.textLight} />
+          <TextInput
+            value={busca}
+            onChangeText={setBusca}
+            placeholder="Buscar no portal..."
+            placeholderTextColor={COLORS.placeholder}
+            style={styles.searchInput}
+          />
+          {!!busca && (
+            <TouchableOpacity style={styles.clearButton} onPress={() => setBusca('')}>
+              <Ionicons name="close-circle" size={18} color={COLORS.placeholder} />
             </TouchableOpacity>
-          </View>
+          )}
+        </View>
       </View>
 
       {carregando ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={{ marginTop: 10, color: COLORS.gray }}>
-            Buscando publicações...
-          </Text>
+          <Text style={styles.loadingText}>Buscando publicações...</Text>
         </View>
       ) : (
         <FlatList
-          data={filtradas}
+          data={publicacoesFiltradas}
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => (
-            <TouchableOpacity
-              onPress={() => router.push(`/publicacao/${item._id}`)}
-            >
-              <Card {...item} />
-            </TouchableOpacity>
+            <Card
+              {...item}
+              favoritosHabilitados
+              onAbrirDetalhes={() => router.push(`/publicacao/${item._id}` as never)}
+            />
           )}
           contentContainerStyle={styles.listContent}
+          showsVerticalScrollIndicator={false}
           ListEmptyComponent={
-            <Text style={{ textAlign: 'center', marginTop: 50, color: COLORS.gray }}>
-              Nenhuma publicação encontrada no momento.
+            <Text style={styles.empty}>
+              {busca ? 'Nenhuma publicação encontrada.' : 'Nenhuma publicação disponível no momento.'}
             </Text>
           }
         />
       )}
 
-      <BotaoVoltar
-        variante="flutuante"
-        cor={COLORS.secondary}
-        style={{ bottom: 90 }}
-      />
+      <UserBottomNav ativa="home" />
 
-      <View style={styles.bottomNav}>
+      <Modal
+        visible={modalNotificacoes}
+        animationType="slide"
+        transparent
+        onRequestClose={() => setModalNotificacoes(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.notificationPanel}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Notificações</Text>
+                <Text style={styles.modalSubtitle}>Novas publicações do portal</Text>
+              </View>
+              <TouchableOpacity style={styles.modalCloseButton} onPress={() => setModalNotificacoes(false)}>
+                <Ionicons name="close" size={22} color={COLORS.textDark} />
+              </TouchableOpacity>
+            </View>
 
-        <TouchableOpacity
-          onPress={() => {
-            setTab('home');
-            router.push('/home');
-          }}
-          style={styles.navItem}
-        >
-          <Ionicons
-            name="home"
-            size={22}
-            color={tab === 'home' ? COLORS.primary : '#999'}
-          />
-          <Text style={[styles.navText, tab === 'home' && styles.active]}>
-            Home
-          </Text>
-        </TouchableOpacity>
+            {notificacoes.length > 0 && (
+              <View style={styles.notificationActions}>
+                <TouchableOpacity style={styles.markAllButton} onPress={marcarTodasComoLidas}>
+                  <Ionicons name="checkmark-done-outline" size={17} color={COLORS.primary} />
+                  <Text style={styles.markAllText}>Marcar todas como lidas</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.clearReadButton} onPress={limparVisualizadas}>
+                  <Ionicons name="trash-outline" size={17} color={COLORS.secondary} />
+                  <Text style={styles.clearReadText}>Limpar visualizadas</Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
-        <TouchableOpacity
-          onPress={() => {
-            setTab('fav');
-            router.push('/favoritos');
-          }}
-          style={styles.navItem}
-        >
-          <Ionicons
-            name="star"
-            size={22}
-            color={tab === 'fav' ? COLORS.primary : '#999'}
-          />
-          <Text style={[styles.navText, tab === 'fav' && styles.active]}>
-            Favoritos
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          onPress={() => {
-            setTab('perfil');
-            router.push('/perfil');
-          }}
-          style={styles.navItem}
-        >
-          <Ionicons
-            name="person"
-            size={22}
-            color={tab === 'perfil' ? COLORS.primary : '#999'}
-          />
-          <Text style={[styles.navText, tab === 'perfil' && styles.active]}>
-            Perfil
-          </Text>
-        </TouchableOpacity>
-
-      </View>
-
+            <FlatList
+              data={notificacoes}
+              keyExtractor={(item) => item._id}
+              contentContainerStyle={notificacoes.length === 0 ? styles.notificationEmptyList : styles.notificationList}
+              renderItem={({ item }) => (
+                <TouchableOpacity style={[styles.notificationItem, !item.lida && styles.notificationUnread]} onPress={() => abrirNotificacao(item)}>
+                  <View style={styles.notificationIcon}>
+                    <Ionicons name="document-text-outline" size={19} color={COLORS.primary} />
+                  </View>
+                  <View style={styles.notificationContent}>
+                    <Text style={styles.notificationTitle} numberOfLines={2}>{item.publicacao.titulo}</Text>
+                    {!!item.publicacao.subtitulo && (
+                      <Text style={styles.notificationDescription} numberOfLines={2}>{item.publicacao.subtitulo}</Text>
+                    )}
+                    <Text style={styles.notificationDate}>{formatarData(item.createdAt)}</Text>
+                  </View>
+                  {!item.lida && <View style={styles.unreadDot} />}
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <View style={styles.notificationEmpty}>
+                  <Ionicons name="notifications-off-outline" size={42} color={COLORS.placeholder} />
+                  <Text style={styles.notificationEmptyTitle}>Nada novo por aqui</Text>
+                  <Text style={styles.notificationEmptyText}>Quando uma publicação for criada, ela aparecerá neste sino.</Text>
+                </View>
+              }
+            />
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
+function formatarData(data: string) {
+  return new Date(data).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 const styles = StyleSheet.create({
-
+  header: {
+    alignItems: 'stretch',
+  },
   headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    width: '100%',
     marginBottom: 18,
-    position: 'relative',
-  },
-
-  titleContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
   },
-
   portalTitle: {
+    color: COLORS.white,
     fontSize: 28,
     fontWeight: '700',
-    color: COLORS.white,
   },
-
-  searchBar: {
-    flexDirection: 'row',
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
-    borderRadius: 25,
-    paddingHorizontal: 15,
-    height: 45,
+  notificationButton: {
+    width: 42,
+    height: 42,
     alignItems: 'center',
-    width: '100%',
+    justifyContent: 'center',
   },
-
+  notificationBadge: {
+    position: 'absolute',
+    top: 4,
+    right: 3,
+    minWidth: 18,
+    height: 18,
+    paddingHorizontal: 4,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.secondary,
+  },
+  notificationBadgeText: {
+    color: COLORS.white,
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  searchBar: {
+    width: '100%',
+    height: 45,
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 15,
+    borderRadius: 25,
+    backgroundColor: 'rgba(255, 255, 255, 0.92)',
+  },
   searchInput: {
     flex: 1,
-    marginLeft: 10,
-    fontSize: 16,
+    marginLeft: 9,
     color: COLORS.textDark,
+    fontSize: 16,
   },
-
+  clearButton: {
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   listContent: {
     padding: 15,
-    paddingBottom: 80,
+    paddingBottom: 84,
   },
-
   center: {
     flex: 1,
+    alignItems: 'center',
     justifyContent: 'center',
-    alignItems: 'center',
   },
-
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 70,
-    backgroundColor: '#fff',
+  loadingText: {
+    marginTop: 10,
+    color: COLORS.gray,
+  },
+  empty: {
+    marginTop: 50,
+    color: COLORS.gray,
+    textAlign: 'center',
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(0, 0, 0, 0.32)',
+  },
+  notificationPanel: {
+    maxHeight: '82%',
+    paddingTop: 18,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: COLORS.white,
+  },
+  modalHeader: {
+    paddingHorizontal: 18,
+    paddingBottom: 12,
     flexDirection: 'row',
-    justifyContent: 'space-around',
     alignItems: 'center',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 10,
+    justifyContent: 'space-between',
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.lightGray,
   },
-
-  navItem: {
-    alignItems: 'center',
+  modalTitle: {
+    color: COLORS.textDark,
+    fontSize: 20,
+    fontWeight: 'bold',
   },
-
-  navText: {
+  modalSubtitle: {
+    marginTop: 2,
+    color: COLORS.gray,
     fontSize: 12,
-    color: '#999',
   },
-
-  active: {
+  modalCloseButton: {
+    width: 38,
+    height: 38,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationActions: {
+    marginTop: 10,
+    paddingHorizontal: 18,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+  },
+  markAllButton: {
+    marginRight: 8,
+    marginBottom: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#e8f5e9',
+  },
+  markAllText: {
+    marginLeft: 5,
     color: COLORS.primary,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  clearReadButton: {
+    marginBottom: 8,
+    paddingVertical: 7,
+    paddingHorizontal: 9,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: 8,
+    backgroundColor: '#ffebee',
+  },
+  clearReadText: {
+    marginLeft: 5,
+    color: COLORS.secondary,
+    fontSize: 12,
+    fontWeight: 'bold',
+  },
+  notificationList: {
+    padding: 14,
+    paddingBottom: 24,
+  },
+  notificationEmptyList: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 30,
+  },
+  notificationItem: {
+    minHeight: 74,
+    marginBottom: 9,
+    padding: 11,
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
+    backgroundColor: COLORS.white,
+  },
+  notificationUnread: {
+    borderColor: '#c8e6c9',
+    backgroundColor: '#f4fbf5',
+  },
+  notificationIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#e8f5e9',
+  },
+  notificationContent: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  notificationTitle: {
+    color: COLORS.textDark,
+    fontSize: 14,
+    fontWeight: 'bold',
+  },
+  notificationDescription: {
+    marginTop: 2,
+    color: COLORS.gray,
+    fontSize: 12,
+  },
+  notificationDate: {
+    marginTop: 4,
+    color: COLORS.placeholder,
+    fontSize: 11,
+  },
+  unreadDot: {
+    width: 9,
+    height: 9,
+    marginLeft: 7,
+    borderRadius: 5,
+    backgroundColor: COLORS.secondary,
+  },
+  notificationEmpty: {
+    alignItems: 'center',
+  },
+  notificationEmptyTitle: {
+    marginTop: 10,
+    color: COLORS.textDark,
+    fontSize: 16,
+    fontWeight: 'bold',
+  },
+  notificationEmptyText: {
+    marginTop: 5,
+    color: COLORS.gray,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
   },
 });

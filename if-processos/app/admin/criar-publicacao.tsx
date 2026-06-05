@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Card from '@/src/components/Card';
@@ -10,6 +9,7 @@ import { globalStyles } from '@/src/styles/globalStyles';
 import * as ImagePicker from 'expo-image-picker';
 import * as DocumentPicker from 'expo-document-picker';
 import { API_URL } from '@/src/config/api';
+import { criarCabecalhoAuth } from '@/src/config/auth';
 
 export default function CriarPublicacao() {
 
@@ -22,30 +22,9 @@ export default function CriarPublicacao() {
     const [subtitulo, setSubtitulo] = useState('');
     const [imagem, setImagem] = useState('');
 
-    // USER ID
-    const [userId, setUserId] = useState('');
-
-    useEffect(() => {
-        const carregarUsuario = async () => {
-            try {
-                const id = await AsyncStorage.getItem('userId');
-
-                if (id) {
-                    setUserId(id);
-                }
-            } catch (error) {
-                console.error('Erro ao carregar userId:', error);
-            }
-        };
-
-        carregarUsuario();
-    }, []);
-
     const handleSelecionarCapa = async () => {
         const resultado = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ['images'],
-            allowsEditing: true,
-            aspect: [16, 9],
             quality: 1,
         });
 
@@ -98,11 +77,6 @@ export default function CriarPublicacao() {
             return;
         }
 
-        if (!userId) {
-            Alert.alert("Erro", "Usuário não identificado.");
-            return;
-        }
-
         try {
 
             const formData = new FormData();
@@ -111,9 +85,7 @@ export default function CriarPublicacao() {
             formData.append('subtitulo', subtitulo);
             formData.append('descricao', descricao);
             formData.append('urlPublicacao', link);
-
-            // USER ID
-            formData.append('userId', userId);
+            formData.append('linkExterno', link);
 
             if (imagem) {
 
@@ -165,6 +137,7 @@ export default function CriarPublicacao() {
 
             const resposta = await fetch(`${API_URL}/publicacoes`, {
                 method: 'POST',
+                headers: criarCabecalhoAuth(),
                 body: formData,
             });
 
@@ -397,9 +370,6 @@ export default function CriarPublicacao() {
                         pdfs={arquivos}
                         linkExterno={link}
                         _id={''}
-
-                        // USER ID
-                        userId={userId}
                     />
 
                 </View>
