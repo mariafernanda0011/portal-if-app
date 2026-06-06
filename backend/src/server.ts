@@ -1735,6 +1735,6 @@ app.use((error: Error, req: Request, res: Response, next: NextFunction) => {
   next(error);
 });
 
-app.listen(Number(PORT), '0.0.0.0', () => {
+app.listen(Number(PORT),() => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
 });
