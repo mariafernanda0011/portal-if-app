@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "owner": "renatoxd2",
     "orientation": "portrait",
-    "icon": "./assets/images/ifnmg_logo.png",
+    "icon": "./assets/images/icon.png",
     "scheme": "ifprocessos",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -16,26 +16,25 @@
       "package": "com.seu.projeto",
       "usesCleartextTraffic": true,
       "softwareKeyboardLayoutMode": "resize",
-
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/images/ifnmg_logo.png",
+        "foregroundImage": "./assets/images/icon.png",
         "backgroundImage": "./assets/images/background.png",
-        "monochromeImage": "./assets/images/ifnmg_logo.png"
+        "monochromeImage": "./assets/images/icon.png"
       },
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false
     },
     "web": {
       "output": "static",
-      "favicon": "./assets/images/ifnmg_logo.png"
+      "favicon": "./assets/images/icon.png"
     },
     "plugins": [
       "expo-router",
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/ifnmg_logo.png",
+          "image": "./assets/images/icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff",
@@ -48,6 +47,12 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "0a9203af-170d-4bf4-9c25-c97480405996"
+      }
     }
   }
 }
