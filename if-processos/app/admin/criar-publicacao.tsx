@@ -21,6 +21,7 @@ export default function CriarPublicacao() {
     const [arquivos, setArquivos] = useState<string[]>([]);
     const [subtitulo, setSubtitulo] = useState('');
     const [imagem, setImagem] = useState('');
+    const [dataLimite, setDataLimite] = useState('');
 
     const handleSelecionarCapa = async () => {
         const resultado = await ImagePicker.launchImageLibraryAsync({
@@ -86,6 +87,7 @@ export default function CriarPublicacao() {
             formData.append('descricao', descricao);
             formData.append('urlPublicacao', link);
             formData.append('linkExterno', link);
+            formData.append('dataLimite', dataLimite.trim());
 
             if (imagem) {
 
@@ -242,6 +244,25 @@ export default function CriarPublicacao() {
                         />
                     </View>
 
+                    <View style={globalStyles.inputGroup}>
+                        <Text style={globalStyles.label}>
+                            Data limite (Opcional)
+                        </Text>
+
+                        <TextInput
+                            style={globalStyles.input}
+                            placeholder="DD/MM/AAAA"
+                            value={dataLimite}
+                            onChangeText={setDataLimite}
+                            keyboardType="numbers-and-punctuation"
+                            maxLength={10}
+                        />
+
+                        <Text style={styles.fieldHint}>
+                            Deixe vazio para validade indeterminada.
+                        </Text>
+                    </View>
+
                     <Text style={styles.sectionTitle}>
                         Arquivos e Mídia
                     </Text>
@@ -369,6 +390,7 @@ export default function CriarPublicacao() {
                         }
                         pdfs={arquivos}
                         linkExterno={link}
+                        dataLimite={dataLimite || undefined}
                         _id={''}
                     />
 
@@ -433,6 +455,12 @@ const styles = StyleSheet.create({
     textArea: {
         height: 100,
         textAlignVertical: 'top'
+    },
+
+    fieldHint: {
+        marginTop: 6,
+        color: COLORS.placeholder,
+        fontSize: 12,
     },
 
     row: {

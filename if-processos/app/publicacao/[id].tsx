@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
@@ -19,6 +19,7 @@ type Comentario = {
     email?: string;
     cargo?: string;
     role?: string;
+    foto?: string;
   };
   nomeVisitante?: string;
 };
@@ -39,6 +40,9 @@ export default function DetalhesPublicacao() {
   const [comentarios, setComentarios] = useState<Comentario[]>([]);
   const [comentarioTexto, setComentarioTexto] = useState('');
   const [nomeVisitante, setNomeVisitante] = useState('');
+  const [captchaId, setCaptchaId] = useState('');
+  const [captchaResposta, setCaptchaResposta] = useState('');
+  const [captchaPergunta, setCaptchaPergunta] = useState('Carregando captcha...');
   const [carregando, setCarregando] = useState(true);
   const [iniciandoChat, setIniciandoChat] = useState(false);
   const [enviandoComentario, setEnviandoComentario] = useState(false);
@@ -64,6 +68,18 @@ export default function DetalhesPublicacao() {
     mensagemPublicacaoInteressados &&
     (ehAdminCriador || (ehAluno && interessado))
   );
+  const comentarioVisitanteInvalido = !usuarioAutenticado && (!nomeVisitante.trim() || !captchaId || !captchaResposta.trim());
+
+  const carregarCaptcha = useCallback(async () => {
+    try {
+      const resposta = await axios.get(`${API_URL}/comentarios/captcha`);
+      setCaptchaId(resposta.data?.id || '');
+      setCaptchaPergunta(resposta.data?.pergunta || 'Resolva a conta para comentar.');
+    } catch {
+      setCaptchaId('');
+      setCaptchaPergunta('Não foi possível carregar o captcha.');
+    }
+  }, []);
 
   const carregarPublicacao = useCallback(async () => {
     try {
@@ -74,6 +90,8 @@ export default function DetalhesPublicacao() {
 
       if (obterToken()) {
         requisicoes.push(axios.get(`${API_URL}/auth/perfil`, { headers: criarCabecalhoAuth() }));
+      } else {
+        carregarCaptcha();
       }
 
       const [respostaPublicacao, respostaComentarios, respostaPerfil] = await Promise.all(requisicoes);
@@ -95,7 +113,7 @@ export default function DetalhesPublicacao() {
     } finally {
       setCarregando(false);
     }
-  }, [id]);
+  }, [id, carregarCaptcha]);
 
   useFocusEffect(
     useCallback(() => {
@@ -129,18 +147,30 @@ export default function DetalhesPublicacao() {
       Alert.alert('Nome obrigatório', 'Informe seu nome para comentar como visitante.');
       return;
     }
+    if (!usuarioAutenticado && (!captchaId || !captchaResposta.trim())) {
+      Alert.alert('Captcha obrigatório', 'Responda a pergunta simples para comentar como visitante.');
+      return;
+    }
 
     try {
       setEnviandoComentario(true);
       const resposta = await axios.post(
         `${API_URL}/publicacoes/${id}/comentarios`,
-        usuarioAutenticado ? { texto } : { texto, nomeVisitante: nome },
+        usuarioAutenticado ? { texto } : { texto, nomeVisitante: nome, captchaId, captchaResposta: captchaResposta.trim() },
         { headers: criarCabecalhoAuth() }
       );
       setComentarios((atuais) => [resposta.data, ...atuais]);
       setComentarioTexto('');
+      setCaptchaResposta('');
+      if (!usuarioAutenticado) {
+        carregarCaptcha();
+      }
     } catch (error: any) {
       Alert.alert('Erro', error.response?.data?.erro || 'Não foi possível publicar o comentário.');
+      if (!usuarioAutenticado) {
+        setCaptchaResposta('');
+        carregarCaptcha();
+      }
     } finally {
       setEnviandoComentario(false);
     }
@@ -280,14 +310,28 @@ export default function DetalhesPublicacao() {
                 <View style={styles.commentComposer}>
                   <View style={styles.commentFields}>
                     {!usuarioAutenticado && (
-                      <TextInput
-                        value={nomeVisitante}
-                        onChangeText={setNomeVisitante}
-                        placeholder="Seu nome"
-                        placeholderTextColor={COLORS.placeholder}
-                        style={styles.visitorNameInput}
-                        maxLength={80}
-                      />
+                      <>
+                        <TextInput
+                          value={nomeVisitante}
+                          onChangeText={setNomeVisitante}
+                          placeholder="Seu nome"
+                          placeholderTextColor={COLORS.placeholder}
+                          style={styles.visitorNameInput}
+                          maxLength={80}
+                        />
+                        <View style={styles.captchaRow}>
+                          <Text style={styles.captchaQuestion}>{captchaPergunta}</Text>
+                          <TextInput
+                            value={captchaResposta}
+                            onChangeText={setCaptchaResposta}
+                            placeholder="Resposta"
+                            placeholderTextColor={COLORS.placeholder}
+                            style={styles.captchaInput}
+                            keyboardType="number-pad"
+                            maxLength={4}
+                          />
+                        </View>
+                      </>
                     )}
                     <TextInput
                       value={comentarioTexto}
@@ -300,9 +344,9 @@ export default function DetalhesPublicacao() {
                     />
                   </View>
                   <TouchableOpacity
-                    style={[styles.sendCommentButton, (!comentarioTexto.trim() || (!usuarioAutenticado && !nomeVisitante.trim()) || enviandoComentario) && styles.sendCommentDisabled]}
+                    style={[styles.sendCommentButton, (!comentarioTexto.trim() || comentarioVisitanteInvalido || enviandoComentario) && styles.sendCommentDisabled]}
                     onPress={enviarComentario}
-                    disabled={!comentarioTexto.trim() || (!usuarioAutenticado && !nomeVisitante.trim()) || enviandoComentario}
+                    disabled={!comentarioTexto.trim() || comentarioVisitanteInvalido || enviandoComentario}
                   >
                     {enviandoComentario ? (
                       <ActivityIndicator size="small" color={COLORS.white} />
@@ -317,9 +361,7 @@ export default function DetalhesPublicacao() {
                 ) : (
                   comentarios.map((comentario) => (
                     <View key={comentario._id} style={styles.commentItem}>
-                      <View style={styles.commentAvatar}>
-                        <Ionicons name="person-outline" size={18} color={COLORS.primary} />
-                      </View>
+                      <CommentAvatar comentario={comentario} />
                       <View style={styles.commentContent}>
                         <View style={styles.commentTop}>
                           <Text style={styles.commentName} numberOfLines={1}>{nomeUsuario(comentario)}</Text>
@@ -412,6 +454,33 @@ export default function DetalhesPublicacao() {
 
 function nomeUsuario(comentario: Comentario) {
   return comentario.usuario?.nome || comentario.usuario?.email || comentario.nomeVisitante || 'Visitante';
+}
+
+function CommentAvatar({ comentario }: { comentario: Comentario }) {
+  const foto = comentario.usuario?.foto;
+
+  if (foto) {
+    const uri = montarUrlFoto(foto);
+    return <Image source={{ uri }} style={styles.commentAvatar} />;
+  }
+
+  return (
+    <View style={styles.commentAvatar}>
+      <Ionicons name="person-outline" size={18} color={COLORS.primary} />
+    </View>
+  );
+}
+
+function montarUrlFoto(foto: string) {
+  if (foto.startsWith('http')) return foto;
+
+  const caminhoNormalizado = foto.replace(/\\/g, '/');
+  const indiceUploads = caminhoNormalizado.lastIndexOf('/uploads/');
+  const caminhoPublico = indiceUploads >= 0
+    ? caminhoNormalizado.slice(indiceUploads + 1)
+    : caminhoNormalizado;
+
+  return `${API_URL}/${caminhoPublico}`;
 }
 
 function formatarData(data: string) {
@@ -578,6 +647,30 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     color: COLORS.textDark,
     backgroundColor: COLORS.inputBg,
+  },
+  captchaRow: {
+    minHeight: 42,
+    marginBottom: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  captchaQuestion: {
+    flex: 1,
+    marginRight: 8,
+    color: COLORS.textDark,
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  captchaInput: {
+    width: 96,
+    height: 42,
+    paddingHorizontal: 12,
+    borderWidth: 1,
+    borderColor: COLORS.lightGray,
+    borderRadius: 8,
+    color: COLORS.textDark,
+    backgroundColor: COLORS.inputBg,
+    textAlign: 'center',
   },
   commentInput: {
     minHeight: 44,

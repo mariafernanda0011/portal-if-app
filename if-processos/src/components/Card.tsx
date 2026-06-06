@@ -19,6 +19,7 @@ type CardProps = {
     urlPublicacao?: string;
     pdfs?: string[];
     arquivoPdf?: string;
+    dataLimite?: string;
     autor?: {
         nome?: string;
         cargo?: string;
@@ -199,6 +200,13 @@ export default function Card(props: CardProps) {
                     {props.descricao}
                 </Text>
 
+                <View style={styles.validadeBox}>
+                    <Ionicons name="calendar-outline" size={14} color={COLORS.primary} />
+                    <Text style={styles.validadeTexto}>
+                        {textoValidade(props.dataLimite)}
+                    </Text>
+                </View>
+
                 {!!props.autor?.nome && (
                     <Text style={styles.autor}>
                         {props.autor.nome}{props.autor.cargo ? ` • ${rotuloCargo(props.autor.cargo)}` : ''}
@@ -329,6 +337,28 @@ function rotuloCargo(cargo: string) {
     return cargos[cargo] || cargo;
 }
 
+function textoValidade(dataLimite?: string) {
+    if (!dataLimite) {
+        return 'Validade: indeterminada';
+    }
+
+    const data = dataLimite.includes('/')
+        ? dataDeEntradaBrasileira(dataLimite)
+        : new Date(dataLimite);
+
+    if (Number.isNaN(data.getTime())) {
+        return 'Válido até data inválida';
+    }
+
+    return `Válido até ${data.toLocaleDateString('pt-BR')}`;
+}
+
+function dataDeEntradaBrasileira(valor: string) {
+    const [dia, mes, ano] = valor.split('/').map(Number);
+
+    return new Date(ano, mes - 1, dia);
+}
+
 const styles = StyleSheet.create({
 
     card: {
@@ -397,6 +427,22 @@ const styles = StyleSheet.create({
         color: COLORS.gray,
         marginTop: 5,
         textAlign: 'justify',
+    },
+    validadeBox: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        alignSelf: 'flex-start',
+        marginTop: 9,
+        paddingVertical: 5,
+        paddingHorizontal: 8,
+        borderRadius: 8,
+        backgroundColor: '#e8f5e9',
+    },
+    validadeTexto: {
+        marginLeft: 5,
+        color: COLORS.primary,
+        fontSize: 12,
+        fontWeight: '600',
     },
     autor: {
         marginTop: 8,

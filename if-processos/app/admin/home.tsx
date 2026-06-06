@@ -42,6 +42,7 @@ type Publicacao = {
   urlPublicacao?: string;
   pdfs?: string[];
   arquivoPdf?: string;
+  dataLimite?: string;
   autor?: {
     nome?: string;
     cargo?: Cargo;
@@ -196,7 +197,7 @@ export default function HomeAdmin() {
   };
 
   const abrirEdicaoPublicacao = (publicacao: Publicacao) => {
-    setPublicacaoEmEdicao({ ...publicacao });
+    setPublicacaoEmEdicao({ ...publicacao, dataLimite: dataParaInput(publicacao.dataLimite) });
     setImagemPostSelecionada('');
     setPdfsPostSelecionados([]);
   };
@@ -344,6 +345,7 @@ export default function HomeAdmin() {
       formData.append('subtitulo', publicacaoEmEdicao.subtitulo || '');
       formData.append('descricao', publicacaoEmEdicao.descricao);
       formData.append('urlPublicacao', publicacaoEmEdicao.urlPublicacao || '');
+      formData.append('dataLimite', publicacaoEmEdicao.dataLimite || '');
 
       if (imagemPostSelecionada) {
         const nomeImagem = imagemPostSelecionada.split('/').pop() || 'capa.jpg';
@@ -593,6 +595,7 @@ export default function HomeAdmin() {
                 </View>
 
                 <Text style={styles.postDescription} numberOfLines={3}>{publicacao.descricao}</Text>
+                <Text style={styles.postValidity}>{textoValidade(publicacao.dataLimite)}</Text>
                 {!!publicacao.autor?.nome && (
                   <Text style={styles.postAuthor}>
                     {publicacao.autor.nome}{publicacao.autor.cargo ? ` • ${rotuloCargo(publicacao.autor.cargo)}` : ''}
@@ -797,6 +800,7 @@ export default function HomeAdmin() {
               <Campo label="Subtítulo" value={publicacaoEmEdicao.subtitulo || ''} onChangeText={(subtitulo) => setPublicacaoEmEdicao({ ...publicacaoEmEdicao, subtitulo })} />
               <Campo label="Descrição" multiline value={publicacaoEmEdicao.descricao} onChangeText={(descricao) => setPublicacaoEmEdicao({ ...publicacaoEmEdicao, descricao })} />
               <Campo label="Link externo" value={publicacaoEmEdicao.urlPublicacao || ''} onChangeText={(urlPublicacao) => setPublicacaoEmEdicao({ ...publicacaoEmEdicao, urlPublicacao })} />
+              <Campo label="Data limite (DD/MM/AAAA, opcional)" value={publicacaoEmEdicao.dataLimite || ''} onChangeText={(dataLimite) => setPublicacaoEmEdicao({ ...publicacaoEmEdicao, dataLimite })} />
 
               <Text style={styles.attachmentsTitle}>Arquivos e mídia</Text>
               {imagemPostSource && <Image source={imagemPostSource} style={styles.postImagePreview} />}
@@ -875,6 +879,41 @@ function formatarData(data: string) {
   return new Date(data).toLocaleDateString('pt-BR');
 }
 
+function dataParaInput(data?: string) {
+  if (!data) return '';
+
+  const valor = new Date(data);
+  if (Number.isNaN(valor.getTime())) return '';
+
+  const ano = valor.getFullYear();
+  const mes = String(valor.getMonth() + 1).padStart(2, '0');
+  const dia = String(valor.getDate()).padStart(2, '0');
+
+  return `${dia}/${mes}/${ano}`;
+}
+
+function textoValidade(dataLimite?: string) {
+  if (!dataLimite) {
+    return 'Validade: indeterminada';
+  }
+
+  const data = dataLimite.includes('/')
+    ? dataDeEntradaBrasileira(dataLimite)
+    : new Date(dataLimite);
+
+  if (Number.isNaN(data.getTime())) {
+    return 'Válido até data inválida';
+  }
+
+  return `Válido até ${data.toLocaleDateString('pt-BR')}`;
+}
+
+function dataDeEntradaBrasileira(valor: string) {
+  const [dia, mes, ano] = valor.split('/').map(Number);
+
+  return new Date(ano, mes - 1, dia);
+}
+
 function nomeAutorNotificacao(notificacao: AdminNotificacao) {
   return notificacao.usuario?.nome || notificacao.usuario?.email || notificacao.nomeVisitante || 'Visitante';
 }
@@ -934,6 +973,7 @@ const styles = StyleSheet.create({
   postTitle: { color: COLORS.textDark, fontSize: 15, fontWeight: 'bold' },
   postSubtitle: { marginTop: 2, color: COLORS.gray, fontSize: 12 },
   postDescription: { marginTop: 7, color: COLORS.gray, fontSize: 13, lineHeight: 18 },
+  postValidity: { marginTop: 7, color: COLORS.primary, fontSize: 12, fontWeight: '600' },
   postAuthor: { marginTop: 7, color: COLORS.placeholder, fontSize: 11 },
   postDate: { marginTop: 7, color: COLORS.placeholder, fontSize: 11 },
   status: { paddingVertical: 4, paddingHorizontal: 7, borderRadius: 8 },
