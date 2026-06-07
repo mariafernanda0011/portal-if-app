@@ -42,6 +42,7 @@ export default function Favoritos() {
 
   return (
     <View style={globalStyles.container}>
+
       <View style={styles.header}>
         <Text style={styles.title}>Favoritos</Text>
         <Text style={styles.subtitle}>Publicações salvas para consultar depois</Text>
@@ -80,38 +81,46 @@ export default function Favoritos() {
 }
 
 const styles = StyleSheet.create({
+
   header: {
     paddingTop: 54,
     paddingHorizontal: 20,
     paddingBottom: 18,
     backgroundColor: COLORS.primaryLight,
   },
+
   title: {
     color: COLORS.white,
     fontSize: 26,
     fontWeight: 'bold',
   },
+
   subtitle: {
     marginTop: 4,
     color: '#e8f5e9',
     fontSize: 14,
   },
+
   center: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
+
   listContent: {
     padding: 15,
-    paddingBottom: 84,
+    paddingBottom: 120,
   },
+
   empty: {
     alignItems: 'center',
     paddingTop: 70,
   },
+
   emptyText: {
     marginTop: 10,
     color: COLORS.gray,
     textAlign: 'center',
   },
+
 });

@@ -1,8 +1,9 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
   FlatList,
+  Keyboard,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
@@ -19,6 +20,7 @@ import { API_URL } from '@/src/config/api';
 import { criarCabecalhoAuth } from '@/src/config/auth';
 import { COLORS } from '@/src/styles/theme';
 import { Conversa, MensagemChat } from '@/src/types/Chat';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type RespostaMensagens = {
   conversa: Conversa;
@@ -35,6 +37,18 @@ export default function Chat() {
   const [texto, setTexto] = useState('');
   const [carregando, setCarregando] = useState(true);
   const [enviando, setEnviando] = useState(false);
+  const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const showListener = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
+    const hideListener = Keyboard.addListener('keyboardDidHide', () => setKeyboardVisible(false));
+
+    return () => {
+      showListener.remove();
+      hideListener.remove();
+    };
+  }, []);
 
   const carregarMensagens = useCallback(async (silencioso = false) => {
     try {
@@ -115,6 +129,7 @@ export default function Chat() {
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? insets.bottom : 0}
     >
       <View style={styles.header}>
         <BotaoVoltar variante="header" cor={COLORS.white} />
@@ -175,7 +190,12 @@ export default function Chat() {
               <Text style={styles.closedText}>Conversa encerrada. O histórico permanece disponível.</Text>
             </View>
           ) : (
-            <View style={styles.composer}>
+            <View
+              style={[
+                styles.composer,
+                { paddingBottom: keyboardVisible ? 8 : insets.bottom || 8 },
+              ]}
+            >
               <TextInput
                 value={texto}
                 onChangeText={setTexto}
@@ -226,7 +246,7 @@ const styles = StyleSheet.create({
   messageTextSent: { color: COLORS.white },
   messageTime: { marginTop: 3, color: COLORS.placeholder, fontSize: 10, textAlign: 'right' },
   messageTimeSent: { color: '#e8f5e9' },
-  composer: { padding: 10, flexDirection: 'row', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: COLORS.lightGray, backgroundColor: COLORS.white },
+  composer: { padding: 10, paddingBottom: 10, flexDirection: 'row', alignItems: 'flex-end', borderTopWidth: 1, borderTopColor: COLORS.lightGray, backgroundColor: COLORS.white },
   input: { flex: 1, maxHeight: 104, minHeight: 42, paddingHorizontal: 12, paddingVertical: 10, borderWidth: 1, borderColor: COLORS.lightGray, borderRadius: 8, color: COLORS.textDark, fontSize: 14 },
   sendButton: { width: 42, height: 42, marginLeft: 8, borderRadius: 8, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.primary },
   sendButtonDisabled: { opacity: 0.45 },

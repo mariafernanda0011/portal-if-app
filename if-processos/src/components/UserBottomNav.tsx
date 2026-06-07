@@ -6,10 +6,12 @@ import axios from 'axios';
 import { API_URL } from '@/src/config/api';
 import { criarCabecalhoAuth } from '@/src/config/auth';
 import { COLORS } from '@/src/styles/theme';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 type Aba = 'home' | 'favoritos' | 'conversas' | 'perfil';
 
 export default function UserBottomNav({ ativa }: { ativa: Aba }) {
+  const insets = useSafeAreaInsets();
   const router = useRouter();
   const [mensagensNaoLidas, setMensagensNaoLidas] = useState(0);
 
@@ -33,7 +35,7 @@ export default function UserBottomNav({ ativa }: { ativa: Aba }) {
   );
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { height: 68 + (insets.bottom || 0), paddingBottom: insets.bottom || 0 }]}>
       <NavItem
         ativo={ativa === 'home'}
         icon="home-outline"
@@ -101,7 +103,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     left: 0,
-    height: 68,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-around',
