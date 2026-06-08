@@ -9,7 +9,6 @@ import { COLORS } from '@/src/styles/theme';
 import { globalStyles } from '@/src/styles/globalStyles';
 import { API_URL } from '@/src/config/api';
 
-
 interface Post {
     _id: string;
     titulo: string;
@@ -19,21 +18,23 @@ interface Post {
     createdAt: string;
 }
 
-export default function HomeVisitante() {
+export default function HomeVisitante(){
+
   const router = useRouter();
   const [data, setData] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  const [tab, setTab] = useState<'home' | 'fav'>('home');
-
+  
+  // Carrega as publicações ao montar o componente
   useEffect(() => {
     carregarPublicacoes();
   }, []);
 
+  // Função para carregar as publicações do backend
   async function carregarPublicacoes() {
     try {
       const res = await axios.get(`${API_URL}/publicacoes`);
-
+      // Ordena as publicações por data de criação (mais recentes primeiro)
       const ordenado = res.data.sort(
         (a: Post, b: Post) =>
           new Date(b.createdAt).getTime() -
@@ -43,11 +44,12 @@ export default function HomeVisitante() {
       setData(ordenado);
     } catch (error) {
       console.log('Erro ao buscar publicações:', error);
-    } finally {
+    } finally { 
       setLoading(false);
     }
   }
 
+  // Filtra os dados com base na busca
   const filtradas = data.filter(item =>
     item.titulo.toLowerCase().includes(busca.toLowerCase()) ||
     item.descricao.toLowerCase().includes(busca.toLowerCase())
@@ -58,7 +60,7 @@ export default function HomeVisitante() {
 
       <View style={[globalStyles.header, { alignItems: 'center' }]}>
 
-        <Text style={styles.portalTitle}>Portal IFNMG</Text>
+        <Text style={styles.portalTitle}>Portal IFNMG</Text> 
 
         <View style={styles.searchBar}>
           <Ionicons
@@ -104,33 +106,7 @@ export default function HomeVisitante() {
         />
       )}
 
-      <BotaoVoltar variante="flutuante" cor={COLORS.secondary} style={{ bottom: 90 }} />
-
-      <View style={styles.bottomNav}>
-
-        <TouchableOpacity onPress={() => setTab('home')} style={styles.navItem}>
-          <Ionicons
-            name="home"
-            size={22}
-            color={tab === 'home' ? COLORS.primary : '#999'}
-          />
-          <Text style={[styles.navText, tab === 'home' && styles.active]}>
-            Home
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity onPress={() => setTab('fav')} style={styles.navItem}>
-          <Ionicons
-            name="star"
-            size={22}
-            color={tab === 'fav' ? COLORS.primary : '#999'}
-          />
-          <Text style={[styles.navText, tab === 'fav' && styles.active]}>
-            Favoritos
-          </Text>
-        </TouchableOpacity>
-
-      </View>
+      <BotaoVoltar variante="flutuante" cor={COLORS.secondary} style={{ bottom: 60 }} />
 
     </View>
   );
@@ -177,37 +153,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 50,
     color: COLORS.gray,
-  },
-
-  bottomNav: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 70,
-    backgroundColor: '#fff',
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: -2 },
-    elevation: 10,
-  },
-
-  navItem: {
-    alignItems: 'center',
-  },
-
-  navText: {
-    fontSize: 12,
-    color: '#999',
-  },
-
-  active: {
-    color: COLORS.primary,
-    fontWeight: '600',
   },
 });

@@ -156,7 +156,7 @@ export default function HomeUsuario() {
         <View style={styles.headerTop}>
           <Text style={styles.portalTitle}>Portal IFNMG</Text>
           <TouchableOpacity style={styles.notificationButton} onPress={abrirModalNotificacoes}>
-            <Ionicons name={totalNaoLidas > 0 ? 'notifications' : 'notifications-outline'} size={23} color={COLORS.white} />
+            <Ionicons name={totalNaoLidas > 0 ? 'notifications' : 'notifications'} size={24} color={COLORS.white} />
             {totalNaoLidas > 0 && (
               <View style={styles.notificationBadge}>
                 <Text style={styles.notificationBadgeText}>{totalNaoLidas > 99 ? '99+' : totalNaoLidas}</Text>
@@ -187,7 +187,7 @@ export default function HomeUsuario() {
           <Text style={styles.loadingText}>Buscando publicações...</Text>
         </View>
       ) : (
-        <FlatList
+        <FlatList 
           data={publicacoesFiltradas}
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => (
@@ -352,7 +352,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: 15,
-    paddingBottom: 84,
+    paddingBottom: 120,
   },
   center: {
     flex: 1,
