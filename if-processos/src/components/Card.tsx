@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
-import { View, Text, Image, StyleSheet, TouchableOpacity, Platform, Modal, SafeAreaView, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, Image, StyleSheet, TouchableOpacity, Modal, SafeAreaView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import * as Linking from 'expo-linking';
-import * as FileSystem from 'expo-file-system/legacy';
-import * as Sharing from 'expo-sharing';
 import axios from 'axios';
 import { COLORS } from '../styles/theme';
 import { API_URL } from '@/src/config/api';
@@ -33,7 +31,6 @@ type CardProps = {
 export default function Card(props: CardProps) {
     const [expandido, setExpandido] = useState(false);
     const [modalImagemVisivel, setModalImagemVisivel] = useState(false);
-    const [baixandoPdf, setBaixandoPdf] = useState(false);
     const linkExterno = props.linkExterno || props.urlPublicacao;
     const pdfs = props.pdfs && props.pdfs.length > 0
         ? props.pdfs
@@ -119,40 +116,9 @@ export default function Card(props: CardProps) {
         const urlCompleta = caminhoRelativo.startsWith('http')
             ? caminhoRelativo
             : `${API_URL}/${caminhoRelativo}`;
-        const nomeArquivo = caminhoRelativo.split(/[/\\]/).pop() || `documento-${Date.now()}.pdf`;
+        const urlVisualizador = `https://docs.google.com/gview?embedded=true&url=${encodeURIComponent(urlCompleta)}`;
 
-        if (Platform.OS === 'web') {
-            window.open(urlCompleta, '_blank');
-            return;
-        }
-
-        try {
-            setBaixandoPdf(true);
-            const destino = `${FileSystem.cacheDirectory}${nomeArquivo}`;
-            const download = await FileSystem.downloadAsync(urlCompleta, destino, {
-                headers: criarCabecalhoAuth(),
-            });
-
-            if (download.status < 200 || download.status >= 300) {
-                throw new Error(`Download recusado pelo servidor (${download.status}).`);
-            }
-
-            const podeCompartilhar = await Sharing.isAvailableAsync();
-            if (!podeCompartilhar) {
-                await Linking.openURL(download.uri);
-                return;
-            }
-
-            await Sharing.shareAsync(download.uri, {
-                mimeType: 'application/pdf',
-                UTI: 'com.adobe.pdf',
-                dialogTitle: 'Abrir PDF',
-            });
-        } catch (error: any) {
-            Alert.alert('Erro', error.message || 'Não foi possível baixar ou abrir o PDF.');
-        } finally {
-            setBaixandoPdf(false);
-        }
+        await Linking.openURL(urlVisualizador);
     };
 
     return (
@@ -250,7 +216,7 @@ export default function Card(props: CardProps) {
                                 onPress={() => abrirPdf(path)}
                             >
                                 <Ionicons
-                                    name={baixandoPdf ? 'cloud-download-outline' : 'document-text-outline'}
+                                    name="document-text-outline"
                                     size={20}
                                     color={COLORS.secondary}
                                 />
@@ -289,15 +255,6 @@ export default function Card(props: CardProps) {
                     </TouchableOpacity>
                 )}
             </View>
-
-            <Modal visible={baixandoPdf} animationType="fade" transparent>
-                <View style={styles.downloadOverlay}>
-                    <View style={styles.downloadBox}>
-                        <ActivityIndicator size="large" color={COLORS.primary} />
-                        <Text style={styles.downloadText}>Baixando PDF...</Text>
-                    </View>
-                </View>
-            </Modal>
 
             {imagemSource && (
                 <Modal
@@ -526,24 +483,6 @@ const styles = StyleSheet.create({
         fontWeight: '600',
     },
 
-    downloadOverlay: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.35)',
-    },
-    downloadBox: {
-        minWidth: 180,
-        padding: 18,
-        alignItems: 'center',
-        borderRadius: 8,
-        backgroundColor: COLORS.white,
-    },
-    downloadText: {
-        marginTop: 10,
-        color: COLORS.textDark,
-        fontWeight: 'bold',
-    },
     modalImagemContainer: {
         flex: 1,
         alignItems: 'center',

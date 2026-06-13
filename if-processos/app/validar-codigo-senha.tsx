@@ -47,6 +47,7 @@ export default function ValidarCodigoSenha() {
         </View>
         <Text style={styles.title}>Digite o código</Text>
         <Text style={styles.subtitle}>Enviamos o código para {email}.</Text>
+        <Text style={styles.subtitle}>Se não encontrar, confiraa sua caixa de spam.</Text>
 
         <View style={globalStyles.inputGroup}>
           <Text style={globalStyles.label}>Código de 6 dígitos</Text>

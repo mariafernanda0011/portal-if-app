@@ -44,6 +44,8 @@ const SMTP_PORT = Number(process.env.SMTP_PORT || 587);
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
 const SMTP_FROM = process.env.SMTP_FROM || SMTP_USER;
+const RESEND_API_KEY = process.env.RESEND_API_KEY?.trim() || '';
+const RESEND_FROM = process.env.RESEND_FROM?.trim() || 'Portal IFNMG <onboarding@resend.dev>';
 const UPLOADS_DIR = path.resolve(process.cwd(), 'uploads');
 const MAX_UPLOAD_SIZE = 10 * 1024 * 1024;
 const MIME_TYPES_PERMITIDOS = new Set([
@@ -117,15 +119,7 @@ const autorizarAdmin = (req: RequisicaoAutenticada, res: Response, next: NextFun
   next();
 };
 
-app.use('/uploads', (req: RequisicaoAutenticada, res: Response, next: NextFunction) => {
-  const extensao = path.extname(req.path).toLowerCase();
-
-  if (extensao === '.pdf') {
-    return autenticar(req, res, next);
-  }
-
-  next();
-}, express.static(UPLOADS_DIR));
+app.use('/uploads', express.static(UPLOADS_DIR));
 
 const obterRolePorEmailInstitucional = (email: string) => {
   const emailNormalizado = email.trim().toLowerCase();
@@ -255,7 +249,41 @@ const notificarInteressadosDaPublicacao = async (publicacaoId: unknown, mensagem
   return Array.isArray(resultado) ? resultado.length : 0;
 };
 
-const enviarCodigoRecuperacao = async (email: string, codigo: string) => {
+const montarEmailRecuperacao = (codigo: string) => ({
+  subject: 'Código de recuperação - IF-Processos',
+  text: `Seu código de recuperação é ${codigo}. Ele expira em 15 minutos.`,
+  html: `
+    <p>Olá,</p>
+    <p>Seu código de recuperação do IF-Processos é:</p>
+    <h2>${codigo}</h2>
+    <p>Ele expira em 15 minutos. Se você não solicitou essa alteração, ignore este e-mail.</p>
+  `
+});
+
+const enviarCodigoComResend = async (email: string, codigo: string) => {
+  const conteudo = montarEmailRecuperacao(codigo);
+  const resposta = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${RESEND_API_KEY}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      from: RESEND_FROM,
+      to: email,
+      subject: conteudo.subject,
+      text: conteudo.text,
+      html: conteudo.html
+    })
+  });
+
+  if (!resposta.ok) {
+    const detalhes = await resposta.text();
+    throw new Error(`RESEND_ERRO_${resposta.status}: ${detalhes.slice(0, 500)}`);
+  }
+};
+
+const enviarCodigoComSmtp = async (email: string, codigo: string) => {
   if (!SMTP_HOST || !SMTP_USER || !SMTP_PASS || !SMTP_FROM) {
     if (process.env.NODE_ENV === 'development') {
       console.warn(`[DEV] Código de recuperação para ${email}: ${codigo}`);
@@ -275,18 +303,24 @@ const enviarCodigoRecuperacao = async (email: string, codigo: string) => {
     }
   });
 
+  const conteudo = montarEmailRecuperacao(codigo);
+
   await transporter.sendMail({
     from: SMTP_FROM,
     to: email,
-    subject: 'Código de recuperação - Portal-IFNMG',
-    text: `Seu código de recuperação é ${codigo}. Ele expira em 15 minutos.`,
-    html: `
-      <p>Olá,</p>
-      <p>Seu código de recuperação do Portal-IFNMG é:</p>
-      <h2>${codigo}</h2>
-      <p>Ele expira em 15 minutos. Se você não solicitou essa alteração, ignore este e-mail.</p>
-    `
+    subject: conteudo.subject,
+    text: conteudo.text,
+    html: conteudo.html
   });
+};
+
+const enviarCodigoRecuperacao = async (email: string, codigo: string) => {
+  if (RESEND_API_KEY) {
+    await enviarCodigoComResend(email, codigo);
+    return;
+  }
+
+  await enviarCodigoComSmtp(email, codigo);
 };
 
 console.log('⏳ Tentando conectar ao MongoDB Atlas (Nuvem)...');
