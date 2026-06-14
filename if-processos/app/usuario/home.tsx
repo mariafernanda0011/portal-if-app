@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ImageBackground, Modal, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import axios from 'axios';
@@ -152,7 +152,7 @@ export default function HomeUsuario() {
 
   return (
     <View style={globalStyles.container}>
-      <View style={[globalStyles.header, styles.header]}>
+      <ImageBackground style={[globalStyles.header, styles.header]} source={require('../../assets/images/icone2.png')} imageStyle={globalStyles.headerBackgroundImage}>
         <View style={styles.headerTop}>
           <Text style={styles.portalTitle}>Portal IFNMG</Text>
           <TouchableOpacity style={styles.notificationButton} onPress={abrirModalNotificacoes}>
@@ -179,7 +179,7 @@ export default function HomeUsuario() {
             </TouchableOpacity>
           )}
         </View>
-      </View>
+      </ImageBackground>
 
       {carregando ? (
         <View style={styles.center}>
@@ -187,7 +187,7 @@ export default function HomeUsuario() {
           <Text style={styles.loadingText}>Buscando publicações...</Text>
         </View>
       ) : (
-        <FlatList 
+        <FlatList
           data={publicacoesFiltradas}
           keyExtractor={(item) => item._id}
           renderItem={({ item }) => (

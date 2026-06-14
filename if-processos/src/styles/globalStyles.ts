@@ -8,7 +8,6 @@ export const globalStyles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
 
-  // Cabeçalho padrão arredondado
   header: {
     backgroundColor: COLORS.primaryLight,
     paddingTop: SIZES.headerPadding,
@@ -21,6 +20,17 @@ export const globalStyles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 3,
+    overflow: 'hidden',
+  },
+
+  headerBackgroundImage: {
+    position: 'absolute',
+    left: 50,
+    bottom: -20,  
+    width: 300,  
+    height: 180,
+    resizeMode: 'contain',
+    opacity: 0.4,
   },
   
   headerTitle: {
@@ -30,7 +40,6 @@ export const globalStyles = StyleSheet.create({
     marginLeft: 10,
   },
 
-  // Formulários e Inputs
   inputGroup: {
     marginBottom: 18,
   },
@@ -52,7 +61,6 @@ export const globalStyles = StyleSheet.create({
     color: COLORS.textDark,
   },
   
-  // Botões principais 
   btnPrimary: {
     backgroundColor: COLORS.primary,
     padding: 15,

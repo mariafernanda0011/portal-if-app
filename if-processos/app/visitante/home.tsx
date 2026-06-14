@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import {View, Text, TextInput, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity} from 'react-native';
+import { View, Text, TextInput, FlatList, ActivityIndicator, StyleSheet, TouchableOpacity, ImageBackground } from 'react-native';
 import axios from 'axios';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -10,31 +10,28 @@ import { globalStyles } from '@/src/styles/globalStyles';
 import { API_URL } from '@/src/config/api';
 
 interface Post {
-    _id: string;
-    titulo: string;
-    subtitulo?: string;
-    descricao: string;
-    imagem?: string;
-    createdAt: string;
+  _id: string;
+  titulo: string;
+  subtitulo?: string;
+  descricao: string;
+  imagem?: string;
+  createdAt: string;
 }
 
-export default function HomeVisitante(){
+export default function HomeVisitante() {
 
   const router = useRouter();
   const [data, setData] = useState<Post[]>([]);
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
-  
-  // Carrega as publicações ao montar o componente
+
   useEffect(() => {
     carregarPublicacoes();
   }, []);
 
-  // Função para carregar as publicações do backend
   async function carregarPublicacoes() {
     try {
       const res = await axios.get(`${API_URL}/publicacoes`);
-      // Ordena as publicações por data de criação (mais recentes primeiro)
       const ordenado = res.data.sort(
         (a: Post, b: Post) =>
           new Date(b.createdAt).getTime() -
@@ -44,12 +41,11 @@ export default function HomeVisitante(){
       setData(ordenado);
     } catch (error) {
       console.log('Erro ao buscar publicações:', error);
-    } finally { 
+    } finally {
       setLoading(false);
     }
   }
 
-  // Filtra os dados com base na busca
   const filtradas = data.filter(item =>
     item.titulo.toLowerCase().includes(busca.toLowerCase()) ||
     item.descricao.toLowerCase().includes(busca.toLowerCase())
@@ -58,9 +54,12 @@ export default function HomeVisitante(){
   return (
     <View style={globalStyles.container}>
 
-      <View style={[globalStyles.header, { alignItems: 'center' }]}>
+      <ImageBackground style={[globalStyles.header, { alignItems: 'center' }]}
+        source={require('../../assets/images/icone2.png')}
+        imageStyle={globalStyles.headerBackgroundImage}
+      >
 
-        <Text style={styles.portalTitle}>Portal IFNMG</Text> 
+        <Text style={styles.portalTitle}>Portal IFNMG</Text>
 
         <View style={styles.searchBar}>
           <Ionicons
@@ -78,7 +77,7 @@ export default function HomeVisitante(){
           />
         </View>
 
-      </View>
+      </ImageBackground>
 
       {loading ? (
         <View style={styles.center}>

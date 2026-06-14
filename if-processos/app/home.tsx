@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator,Platform } from 'react-native';
+import { View, Text, TextInput, StyleSheet, FlatList, ActivityIndicator, Platform,ImageBackground } from 'react-native';
 import axios from 'axios';
 import Card from '@/src/components/Card';
 import BotaoVoltar from '@/src/components/BotaoVoltar';
@@ -43,8 +43,10 @@ export default function Home() {
 
     return (
         <View style={globalStyles.container}>
-
-            <View style={[globalStyles.header, { alignItems: 'center' }]}>
+            <ImageBackground style={[globalStyles.header, { alignItems: 'center' }]}
+                source={require('../assets/images/icone2.png')}
+                imageStyle={globalStyles.headerBackgroundImage}
+            >
                 <Text style={styles.portalTitle}>Portal IFNMG</Text>
                 <View style={styles.searchBar}>
                     <Ionicons name="search" size={20} color={COLORS.textLight} />
@@ -54,7 +56,7 @@ export default function Home() {
                         placeholderTextColor={COLORS.placeholder}
                     />
                 </View>
-            </View>
+            </ImageBackground>
 
             {carregando ? (
                 <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
